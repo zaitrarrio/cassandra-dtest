@@ -620,6 +620,61 @@ class TestCQL(Tester):
         res = cursor.fetchall()
         assert res == [[x] for x in range(0, 8)], res
 
+    #@require('#3708')
+    def range_tombstones_test(self):
+        cluster = self.cluster
+
+        # Uses 3 nodes just to make sure RowMutation are correctly serialized
+        cluster.populate(3).start()
+        node1 = cluster.nodelist()[0]
+        time.sleep(0.2)
+
+        cursor = self.cql_connection(node1, version=cql_version).cursor()
+        self.create_ks(cursor, 'ks', 1)
+
+        cursor.execute("""
+            CREATE TABLE test1 (
+                k int,
+                c1 int,
+                c2 int,
+                v1 int,
+                v2 int,
+                PRIMARY KEY (k, c1, c2)
+            );
+        """)
+
+        rows = 10
+        col1 = 2
+        col2 = 2
+        cpr = col1 * col2
+        for i in xrange(0, rows):
+            for j in xrange(0, col1):
+                for k in xrange(0, col2):
+                    n = (i * cpr) + (j * col2) + k
+                    cursor.execute("INSERT INTO test1 (k, c1, c2, v1, v2) VALUES (%d, %d, %d, %d, %d)" % (i, j, k, n, n))
+
+        for i in xrange(0, rows):
+            cursor.execute("SELECT v1, v2 FROM test1 where k = %d" % i)
+            res = cursor.fetchall()
+            assert res == [[x, x] for x in xrange(i * cpr, (i + 1) * cpr)], res
+
+        for i in xrange(0, rows):
+            cursor.execute("DELETE FROM test1 WHERE k = %d AND c1 = 0" % i)
+
+        for i in xrange(0, rows):
+            cursor.execute("SELECT v1, v2 FROM test1 WHERE k = %d" % i)
+            res = cursor.fetchall()
+            assert res == [[x, x] for x in xrange(i * cpr + col1, (i + 1) * cpr)], res
+
+        cluster.flush()
+        time.sleep(0.2)
+
+        for i in xrange(0, rows):
+            cursor.execute("SELECT v1, v2 FROM test1 WHERE k = %d" % i)
+            res = cursor.fetchall()
+            assert res == [[x, x] for x in xrange(i * cpr + col1, (i + 1) * cpr)], res
+
+
     @require('#3783')
     def null_support_test(self):
         cluster = self.cluster
