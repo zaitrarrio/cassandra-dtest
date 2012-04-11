@@ -28,9 +28,9 @@ class TestConcurrentSchemaChanges(Tester):
         cursor.execute('USE ks_%s' % namespace)
 
         # make a keyspace that can be deleted
-        query = """CREATE KEYSPACE ks2_%s WITH strategy_class=SimpleStrategy AND 
-                strategy_options:replication_factor=2""" % (namespace)
-        cursor.execute(query)
+        #query = """CREATE KEYSPACE ks2_%s WITH strategy_class=SimpleStrategy AND 
+        #        strategy_options:replication_factor=2""" % (namespace)
+        #cursor.execute(query)
 
         # create a column family with an index and a row of data
         query = """
@@ -49,14 +49,14 @@ class TestConcurrentSchemaChanges(Tester):
         cursor.execute("CREATE INDEX index_%s ON cf_%s(col2)"%(namespace, namespace))
 
         # create a column family that can be deleted later.
-        query = """
-            CREATE TABLE cf2_%s (
-                col1 uuid PRIMARY KEY,
-                col2 text,
-                col3 text
-            );
-        """ % namespace
-        cursor.execute(query)
+        #query = """
+        #    CREATE TABLE cf2_%s (
+        #        col1 uuid PRIMARY KEY,
+        #        col2 text,
+        #        col3 text
+        #    );
+        #""" % namespace
+        #cursor.execute(query)
 
 
     def make_schema_changes(self, cursor, namespace='ns1'):
@@ -75,38 +75,38 @@ class TestConcurrentSchemaChanges(Tester):
         """
         cursor.execute('USE ks_%s' % namespace)
         # drop keyspace
-        cursor.execute('DROP KEYSPACE ks2_%s' % namespace)
-        wait(2)
+        #cursor.execute('DROP KEYSPACE ks2_%s' % namespace)
+        #wait(2)
 
         # create keyspace
-        query = """CREATE KEYSPACE ks3_%s WITH strategy_class=SimpleStrategy AND
-                strategy_options:replication_factor=2""" % namespace
-        cursor.execute(query)
+        #query = """CREATE KEYSPACE ks3_%s WITH strategy_class=SimpleStrategy AND
+        #        strategy_options:replication_factor=2""" % namespace
+        #cursor.execute(query)
 
-        wait(2)
-        # drop column family
-        cursor.execute("DROP COLUMNFAMILY cf2_%s" % namespace)
+        #wait(2)
+        ## drop column family
+        #cursor.execute("DROP COLUMNFAMILY cf2_%s" % namespace)
 
-        # create column family
-        query = """
-            CREATE TABLE cf3_%s (
-                col1 uuid PRIMARY KEY,
-                col2 text,
-                col3 text,
-                col4 text
-            );
-        """ % (namespace)
-        cursor.execute(query)
+        ## create column family
+        #query = """
+        #    CREATE TABLE cf3_%s (
+        #        col1 uuid PRIMARY KEY,
+        #        col2 text,
+        #        col3 text,
+        #        col4 text
+        #    );
+        #""" % (namespace)
+        #cursor.execute(query)
 
-        # alter column family
-        query = """
-            ALTER COLUMNFAMILY cf_%s
-            ADD col4 text;
-        """ % namespace
-        cursor.execute(query)
+        ## alter column family
+        #query = """
+        #    ALTER COLUMNFAMILY cf_%s
+        #    ADD col4 text;
+        #""" % namespace
+        #cursor.execute(query)
 
-        # add index
-        cursor.execute("CREATE INDEX index2_%s ON cf_%s(col3)"%(namespace, namespace))
+        ## add index
+        #cursor.execute("CREATE INDEX index2_%s ON cf_%s(col3)"%(namespace, namespace))
 
         # remove an index
         cursor.execute("DROP INDEX index_%s" % namespace)
@@ -135,8 +135,10 @@ class TestConcurrentSchemaChanges(Tester):
         """
 
         cluster = self.cluster
-        cluster.populate(2).start()
+        cluster.populate(1)
         node1 = cluster.nodelist()[0]
+        #node1.set_log_level("DEBUG")
+        cluster.start()
         wait(2)
         cursor = self.cql_connection(node1).cursor()
 

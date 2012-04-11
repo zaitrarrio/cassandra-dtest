@@ -460,7 +460,7 @@ class TestCQL(Tester):
         res = cursor.fetchall()
         assert len(res) == 2, res
 
-    @require('3785')
+    #@require('3785')
     def exclusive_slice_test(self):
         cluster = self.cluster
 
@@ -673,7 +673,6 @@ class TestCQL(Tester):
             cursor.execute("SELECT v1, v2 FROM test1 WHERE k = %d" % i)
             res = cursor.fetchall()
             assert res == [[x, x] for x in xrange(i * cpr + col1, (i + 1) * cpr)], res
-
 
     @require('#3783')
     def null_support_test(self):
