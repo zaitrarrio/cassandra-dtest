@@ -674,6 +674,44 @@ class TestCQL(Tester):
             res = cursor.fetchall()
             assert res == [[x, x] for x in xrange(i * cpr + col1, (i + 1) * cpr)], res
 
+
+    def range_tombstones_compaction_test(self):
+        cluster = self.cluster
+
+        cluster.populate(1).start()
+        node1 = cluster.nodelist()[0]
+        time.sleep(0.2)
+
+        cursor = self.cql_connection(node1, version=cql_version).cursor()
+        self.create_ks(cursor, 'ks', 1)
+
+        cursor.execute("""
+            CREATE TABLE test1 (
+                k int,
+                c1 int,
+                c2 int,
+                v1 text,
+                PRIMARY KEY (k, c1, c2)
+            );
+        """)
+
+
+        for c1 in range(0, 4):
+            for c2 in range(0, 2):
+                cursor.execute("INSERT INTO test1 (k, c1, c2, v1) VALUES (0, %d, %d, %s)" % (c1, c2, '%i%i' % (c1, c2)))
+
+        cluster.flush()
+
+        cursor.execute("DELETE FROM test1 WHERE k = 0 AND c1 = 1")
+
+        cluster.flush()
+        cluster.compact()
+
+        cursor.execute("SELECT v1 FROM test1 WHERE k = 0")
+        res = cursor.fetchall()
+        assert res == [ ['%i%i' % (c1, c2)] for c1 in xrange(0, 4) for c2 in xrange(0, 2) if c1 != 1], res
+
+
     @require('#3783')
     def null_support_test(self):
         cluster = self.cluster
