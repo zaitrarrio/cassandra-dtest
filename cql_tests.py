@@ -10,9 +10,7 @@ cql_version="3.0.0-beta1"
 
 class TestCQL(Tester):
 
-    @since('1.1')
-    def static_cf_test(self):
-        """ Test non-composite static CF syntax """
+    def prepare(self):
         cluster = self.cluster
 
         cluster.populate(1).start()
@@ -21,6 +19,12 @@ class TestCQL(Tester):
 
         cursor = self.cql_connection(node1, version=cql_version).cursor()
         self.create_ks(cursor, 'ks', 1)
+        return cursor
+
+    @since('1.1')
+    def static_cf_test(self):
+        """ Test non-composite static CF syntax """
+        cursor = self.prepare()
 
         # Create
         cursor.execute("""
@@ -33,8 +37,8 @@ class TestCQL(Tester):
         """)
 
         # Inserts
-        cursor.execute("INSERT INTO users (userid, firstname, lastname, age) VALUES (550e8400-e29b-41d4-a716-446655440000, Frodo, Baggins, 32)")
-        cursor.execute("UPDATE users SET firstname = Samwise, lastname = Gamgee, age = 33 WHERE userid = f47ac10b-58cc-4372-a567-0e02b2c3d479")
+        cursor.execute("INSERT INTO users (userid, firstname, lastname, age) VALUES (550e8400-e29b-41d4-a716-446655440000, 'Frodo', 'Baggins', 32)")
+        cursor.execute("UPDATE users SET firstname = 'Samwise', lastname = 'Gamgee', age = 33 WHERE userid = f47ac10b-58cc-4372-a567-0e02b2c3d479")
 
         # Queries
         cursor.execute("SELECT firstname, lastname FROM users WHERE userid = 550e8400-e29b-41d4-a716-446655440000");
@@ -72,14 +76,7 @@ class TestCQL(Tester):
     @since('1.1')
     def dynamic_cf_test(self):
         """ Test non-composite dynamic CF syntax """
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE clicks (
@@ -117,14 +114,7 @@ class TestCQL(Tester):
     @since('1.1')
     def dense_cf_test(self):
         """ Test composite 'dense' CF syntax """
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE connections (
@@ -173,14 +163,7 @@ class TestCQL(Tester):
     @since('1.1')
     def sparse_cf_test(self):
         """ Test composite 'sparse' CF syntax """
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE timeline (
@@ -221,14 +204,9 @@ class TestCQL(Tester):
 
     @since('1.1')
     def create_invalid_test(self):
-        cluster = self.cluster
+        """ Check invalid CREATE TABLE requests """
 
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        cursor = self.prepare()
 
         assert_invalid(cursor, "CREATE TABLE test ()")
         assert_invalid(cursor, "CREATE TABLE test (key text PRIMARY KEY)")
@@ -243,6 +221,8 @@ class TestCQL(Tester):
 
     @since('1.1')
     def limit_ranges_test(self):
+        """ Validate LIMIT option for 'range queries' in SELECT statements """
+
         cluster = self.cluster
         # We don't yet support paging for RP
         cluster.set_partitioner("org.apache.cassandra.dht.ByteOrderedPartitioner")
@@ -279,14 +259,8 @@ class TestCQL(Tester):
 
     @since('1.1')
     def limit_multiget_test(self):
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        """ Validate LIMIT option for 'multiget' in SELECT statements """
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE clicks (
@@ -311,14 +285,8 @@ class TestCQL(Tester):
 
     @since('1.1')
     def limit_sparse_test(self):
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        """ Validate LIMIT option for sparse table in SELECT statements """
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE clicks (
@@ -334,7 +302,7 @@ class TestCQL(Tester):
         # Inserts
         for id in xrange(0, 100):
             for tld in [ 'com', 'org', 'net' ]:
-                cursor.execute("INSERT INTO clicks (userid, url, day, month, year) VALUES (%i, 'http://foo.%s', 1, jan, 2012)" % (id, tld))
+                cursor.execute("INSERT INTO clicks (userid, url, day, month, year) VALUES (%i, 'http://foo.%s', 1, 'jan', 2012)" % (id, tld))
 
         # Queries
         # Check we do get as many rows as requested
@@ -344,14 +312,8 @@ class TestCQL(Tester):
 
     @since('1.1')
     def counters_test(self):
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        """ Validate counter support """
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE clicks (
@@ -385,14 +347,7 @@ class TestCQL(Tester):
     @since('1.1')
     def indexed_with_eq_test(self):
         """ Check that you can query for an indexed column even with a key EQ clause """
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        cursor = self.prepare()
 
         # Create
         cursor.execute("""
@@ -407,8 +362,8 @@ class TestCQL(Tester):
         cursor.execute("CREATE INDEX byAge ON users(age)")
 
         # Inserts
-        cursor.execute("INSERT INTO users (userid, firstname, lastname, age) VALUES (550e8400-e29b-41d4-a716-446655440000, Frodo, Baggins, 32)")
-        cursor.execute("UPDATE users SET firstname = Samwise, lastname = Gamgee, age = 33 WHERE userid = f47ac10b-58cc-4372-a567-0e02b2c3d479")
+        cursor.execute("INSERT INTO users (userid, firstname, lastname, age) VALUES (550e8400-e29b-41d4-a716-446655440000, 'Frodo', 'Baggins', 32)")
+        cursor.execute("UPDATE users SET firstname = 'Samwise', lastname = 'Gamgee', age = 33 WHERE userid = f47ac10b-58cc-4372-a567-0e02b2c3d479")
 
         # Queries
         cursor.execute("SELECT firstname FROM users WHERE userid = 550e8400-e29b-41d4-a716-446655440000 AND age = 33");
@@ -421,15 +376,8 @@ class TestCQL(Tester):
 
     @since('1.1')
     def select_key_in_test(self):
-        """Query for KEY IN (...)"""
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        """ Query for KEY IN (...) """
+        cursor = self.prepare()
 
         # Create
         cursor.execute("""
@@ -444,11 +392,11 @@ class TestCQL(Tester):
         # Inserts
         cursor.execute("""
                 INSERT INTO users (userid, firstname, lastname, age)
-                VALUES (550e8400-e29b-41d4-a716-446655440000, Frodo, Baggins, 32)
+                VALUES (550e8400-e29b-41d4-a716-446655440000, 'Frodo', 'Baggins', 32)
         """)
         cursor.execute("""
                 INSERT INTO users (userid, firstname, lastname, age)
-                VALUES (f47ac10b-58cc-4372-a567-0e02b2c3d479, Samwise, Gamgee, 33)
+                VALUES (f47ac10b-58cc-4372-a567-0e02b2c3d479, 'Samwise', 'Gamgee', 33)
         """)
 
         # Select
@@ -460,16 +408,10 @@ class TestCQL(Tester):
         res = cursor.fetchall()
         assert len(res) == 2, res
 
-    #@require('3785')
+    @since('1.1')
     def exclusive_slice_test(self):
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        """ Test SELECT respects inclusive and exclusive bounds """
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE test (
@@ -515,14 +457,8 @@ class TestCQL(Tester):
 
     @since('1.1')
     def in_clause_wide_rows_test(self):
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        """ Check IN support for 'wide rows' in SELECT statement """
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE test1 (
@@ -565,14 +501,8 @@ class TestCQL(Tester):
 
     @since('1.1')
     def order_by_test(self):
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        """ Check ORDER BY support in SELECT statement """
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE test1 (
@@ -620,8 +550,9 @@ class TestCQL(Tester):
         res = cursor.fetchall()
         assert res == [[x] for x in range(0, 8)], res
 
-    #@require('#3708')
+    @require('#3708')
     def range_tombstones_test(self):
+        """ Test deletion by 'composite prefix' (range tombstones) """
         cluster = self.cluster
 
         # Uses 3 nodes just to make sure RowMutation are correctly serialized
@@ -674,8 +605,9 @@ class TestCQL(Tester):
             res = cursor.fetchall()
             assert res == [[x, x] for x in xrange(i * cpr + col1, (i + 1) * cpr)], res
 
-
+    @require('#3708')
     def range_tombstones_compaction_test(self):
+        """ Test deletion by 'composite prefix' (range tombstones) with compaction """
         cluster = self.cluster
 
         cluster.populate(1).start()
@@ -711,17 +643,10 @@ class TestCQL(Tester):
         res = cursor.fetchall()
         assert res == [ ['%i%i' % (c1, c2)] for c1 in xrange(0, 4) for c2 in xrange(0, 2) if c1 != 1], res
 
-
     @require('#3783')
     def null_support_test(self):
-        cluster = self.cluster
-
-        cluster.populate(1).start()
-        node1 = cluster.nodelist()[0]
-        time.sleep(0.2)
-
-        cursor = self.cql_connection(node1, version=cql_version).cursor()
-        self.create_ks(cursor, 'ks', 1)
+        """ Test support for nulls """
+        cursor = self.prepare()
 
         cursor.execute("""
             CREATE TABLE test1 (
@@ -754,3 +679,29 @@ class TestCQL(Tester):
         cursor.execute("SELECT v FROM test1 WHERE k = 0 AND c1 = 0 AND c2 = 0 AND c3 = null")
         res = cursor.fetchall()
         assert res == [[10]], res
+
+    @since('1.1')
+    def nameless_index(self):
+        """ Test CREATE INDEX without name and validate the index can be dropped """
+        cursor = self.prepare()
+
+        cursor.execute("""
+            CREATE TABLE users (
+                id text PRIMARY KEY,
+                birth_year int,
+            )
+        """)
+
+        cursor.execute("CREATE INDEX on users(birth_year)")
+
+        cursor.execute("INSERT INTO users (id, birth_year) VALUES ('Tom', 42)")
+        cursor.execute("INSERT INTO users (id, birth_year) VALUES ('Paul', 24)")
+        cursor.execute("INSERT INTO users (id, birth_year) VALUES ('Bob', 42)")
+
+        cursor.execute("SELECT id FROM users WHERE birth_year = 42")
+        res = cursor.fetchall()
+        assert res == [['Tom'], ['Bob']]
+
+        cursor.execute("DROP INDEX users_birth_year")
+
+        assert_invalid(cursor, "SELECT id FROM users WHERE birth_year = 42")
