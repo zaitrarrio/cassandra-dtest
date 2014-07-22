@@ -78,23 +78,14 @@ class TestAuth(Tester):
         cassandra = self.get_cursor(user='cassandra', password='cassandra')
         cassandra.execute("CREATE USER mike WITH PASSWORD '12345' NOSUPERUSER")
         cassandra.execute("CREATE ROLE role1")
-        cassandra.execute("CREATE ROLE role2")
 
         cassandra.execute("GRANT ROLE role1 TO USER mike")
         
         self.assertRoles(['role1'], cassandra, 'LIST ROLES OF USER mike')
 
-        cassandra.execute("GRANT ROLE role1 TO ROLE role2")
-        
-        self.assertRoles(['role1'], cassandra, 'LIST ROLES OF ROLE role2')
-
         cassandra.execute("REVOKE ROLE role1 FROM USER mike")
 
         self.assertRoles([], cassandra, 'LIST ROLES OF USER mike')
-
-        cassandra.execute("REVOKE ROLE role1 FROM ROLE role2")
-
-        self.assertRoles([], cassandra, 'LIST ROLES OF ROLE role2')
 
     def grant_revoke_role_validation_test(self):
         self.prepare()
@@ -107,22 +98,10 @@ class TestAuth(Tester):
 
         cassandra.execute("CREATE ROLE role1")
         
-        self.assertUnauthorized("A role cannot operate on itself", cassandra, 'GRANT ROLE role1 TO ROLE role1')
-
-        self.assertUnauthorized("Role role2 doesn't exist", cassandra, 'GRANT ROLE role1 TO ROLE role2')
         self.assertUnauthorized("User john doesn't exist", cassandra, 'GRANT ROLE role1 TO USER john')
 
         cassandra.execute("CREATE USER john WITH PASSWORD '12345' NOSUPERUSER")
         cassandra.execute("CREATE ROLE role2")
-        cassandra.execute("GRANT ROLE role1 TO ROLE role2")
-        
-        self.assertUnauthorized('Role role2 is already granted Role role1', cassandra, 'GRANT ROLE role1 TO ROLE role2')
-
-        self.assertUnauthorized('Grant will create circular dependency', cassandra, 'GRANT ROLE role2 TO ROLE role1')
-
-        cassandra.execute("REVOKE ROLE role1 FROM ROLE role2")
-
-        self.assertUnauthorized('Role role1 is not granted to Role role2', cassandra, 'REVOKE ROLE role1 FROM ROLE role2')
 
         self.assertUnauthorized('Only superusers are allowed to perform role management queries', mike, 'GRANT ROLE role1 TO USER john')
 
@@ -130,11 +109,6 @@ class TestAuth(Tester):
 
         self.assertUnauthorized('Only superusers are allowed to perform role management queries', mike, 'REVOKE ROLE role1 FROM USER john')
 
-        self.assertUnauthorized('Only superusers are allowed to perform role management queries', mike, 'GRANT ROLE role1 TO ROLE role2')
-        
-        cassandra.execute("GRANT ROLE role1 TO ROLE role2")
-
-        self.assertUnauthorized('Only superusers are allowed to perform role management queries', mike, 'REVOKE ROLE role1 FROM ROLE role2')
 
     def list_roles_test(self):
         self.prepare()
@@ -145,28 +119,13 @@ class TestAuth(Tester):
 
         cassandra.execute("CREATE ROLE role1")
         cassandra.execute("CREATE ROLE role2")
-        cassandra.execute("CREATE ROLE role3")
-        cassandra.execute("CREATE ROLE role4")
 
-        self.assertRoles(['role1', 'role2', 'role3', 'role4'], cassandra, 'LIST ROLES')
+        self.assertRoles(['role1', 'role2'], cassandra, 'LIST ROLES')
 
-        cassandra.execute("GRANT ROLE role1 TO ROLE role2")
-        cassandra.execute("GRANT ROLE role2 TO ROLE role3")
+        cassandra.execute("GRANT ROLE role1 TO USER mike")
+        cassandra.execute("GRANT ROLE role2 TO USER mike")
 
-        cassandra.execute("GRANT ROLE role3 TO USER mike")
-        cassandra.execute("GRANT ROLE role4 TO USER mike")
-
-        self.assertRoles(['role1', 'role2'], cassandra, 'LIST ROLES OF ROLE role3')
-
-        self.assertRoles(['role2'], cassandra, 'LIST ROLES OF ROLE role3 NORECURSIVE')
-
-        self.assertRoles(['role1', 'role2', 'role3', 'role4'], cassandra, 'LIST ROLES OF USER mike')
-
-        self.assertRoles(['role3', 'role4'], cassandra, 'LIST ROLES OF USER mike NORECURSIVE')
-
-        self.assertRoles(['role1', 'role2', 'role3', 'role4'], mike, 'LIST ROLES')
-
-        self.assertRoles(['role3', 'role4'], mike, 'LIST ROLES NORECURSIVE')
+        self.assertRoles(['role1', 'role2'], cassandra, 'LIST ROLES OF USER mike')
 
     def list_roles_validation_test(self):
         self.prepare()
@@ -177,17 +136,11 @@ class TestAuth(Tester):
 
         cassandra.execute("CREATE ROLE role1")
         cassandra.execute("CREATE ROLE role2")
-        cassandra.execute("CREATE ROLE role3")
-        cassandra.execute("CREATE ROLE role4")
 
-        cassandra.execute("GRANT ROLE role1 TO ROLE role2")
-        cassandra.execute("GRANT ROLE role2 TO ROLE role3")
-
-        cassandra.execute("GRANT ROLE role3 TO USER mike")
-        cassandra.execute("GRANT ROLE role4 TO USER mike")
+        cassandra.execute("GRANT ROLE role1 TO USER mike")
+        cassandra.execute("GRANT ROLE role2 TO USER mike")
         
-        self.assertUnauthorized('Only superusers are allowed to LIST ROLES for another user or role', mike, 'LIST ROLES OF ROLE role3')
-        self.assertUnauthorized('Only superusers are allowed to LIST ROLES for another user or role', mike, 'LIST ROLES OF USER mike')
+        self.assertUnauthorized('Only superusers are allowed to LIST ROLES for another user', mike, 'LIST ROLES OF USER mike')
 
     def grant_revoke_permissions_test(self):
         self.prepare()
@@ -233,20 +186,20 @@ class TestAuth(Tester):
 
         cassandra.execute("GRANT ROLE role1 TO USER mike")
         
-        self.assertPermissionsListed([('mike', 'None', '<table ks.cf>', 'MODIFY'),
-                                      ('None', 'role1', '<table ks.cf>', 'SELECT')],
+        self.assertPermissionsListed([('mike', '', '<table ks.cf>', 'MODIFY'),
+                                      ('', 'role1', '<table ks.cf>', 'SELECT')],
                                      cassandra, "LIST ALL PERMISSIONS")
 
         mike = self.get_cursor(user='mike', password='12345')
         
-        self.assertPermissionsListed([('mike', 'None', '<table ks.cf>', 'MODIFY'),
-                                      ('None', 'role1', '<table ks.cf>', 'SELECT')],
-                                     mike, "LIST ALL PERMISSIONS")
+        self.assertPermissionsListed([('mike', '', '<table ks.cf>', 'MODIFY'),
+                                      ('', 'role1', '<table ks.cf>', 'SELECT')],
+                                     mike, "LIST ALL PERMISSIONS OF mike")
         
 
     def prepare(self, nodes=1, permissions_expiry=0):
-        config = {'authenticator' : 'org.apache.cassandra.auth.RoleAwarePasswordAuthenticator',
-                  'authorizer' : 'org.apache.cassandra.auth.CassandraRoleAwareAuthorizer',
+        config = {'authenticator' : 'org.apache.cassandra.auth.PasswordAuthenticator',
+                  'authorizer' : 'org.apache.cassandra.auth.CassandraAuthorizer',
                   'permissions_validity_in_ms' : permissions_expiry}
         self.cluster.set_configuration_options(values=config)
         self.cluster.populate(nodes).start(no_wait=True)
