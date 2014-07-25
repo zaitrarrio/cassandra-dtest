@@ -508,10 +508,10 @@ class TestAuth(Tester):
                                       ('bob', 'None', '<table ks.cf2>', 'MODIFY')],
                                      bob, "LIST ALL PERMISSIONS OF bob")
 
-        self.assertUnauthorized("You are not authorized to view everyone's permissions",
+        self.assertUnauthorized("You are not authorized to view all roles and users permissions",
                                 bob, "LIST ALL PERMISSIONS")
 
-        self.assertUnauthorized("You are not authorized to view cathy's permissions",
+        self.assertUnauthorized("You are not authorized to view User-cathy permissions",
                                 bob, "LIST ALL PERMISSIONS OF cathy")
 
     def prepare(self, nodes=1, permissions_expiry=0):
