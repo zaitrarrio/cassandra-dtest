@@ -6,7 +6,7 @@ from dtest import Tester, debug
 from tools import *
 from nose.tools import nottest
 
-class TestAuth(Tester):
+class TestAuthRoles(Tester):
 
     def __init__(self, *args, **kwargs):
         self.ignore_log_patterns = [
