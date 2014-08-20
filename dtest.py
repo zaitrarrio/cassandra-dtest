@@ -3,7 +3,7 @@ import os, tempfile, sys, shutil, subprocess, time, threading,  logging
 import fnmatch
 import re
 import copy
-import configparser as ConfigParser
+from six.moves import configparser as ConfigParser
 from six import print_
 
 from ccmlib.cluster import Cluster
