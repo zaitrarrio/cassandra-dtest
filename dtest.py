@@ -1,8 +1,10 @@
 from __future__ import with_statement
-import os, tempfile, sys, shutil, subprocess, types, time, threading, ConfigParser, logging
+import os, tempfile, sys, shutil, subprocess, time, threading,  logging
 import fnmatch
 import re
 import copy
+import configparser as ConfigParser
+from six import print_
 
 from ccmlib.cluster import Cluster
 from ccmlib.node import Node
@@ -62,7 +64,7 @@ def reset_environment_vars():
 def debug(msg):
     LOG.debug(msg, extra={"current_test":CURRENT_TEST})
     if PRINT_DEBUG:
-        print msg
+        print_(msg)
 
 def retry_till_success(fun, *args, **kwargs):
     timeout = kwargs.pop('timeout', 60)
@@ -338,7 +340,7 @@ class Tester(TestCase):
 
     def create_ks(self, session, name, rf):
         query = 'CREATE KEYSPACE %s WITH replication={%s}'
-        if isinstance(rf, types.IntType):
+        if isinstance(rf, int):
             # we assume simpleStrategy
             session.execute(query % (name, "'class':'SimpleStrategy', 'replication_factor':%d" % rf))
         else:
@@ -399,7 +401,7 @@ class Tester(TestCase):
                     # means the test failed. Save the logs for inspection.
                     self.copy_logs()
             except Exception as e:
-                    print "Error saving log:", str(e)
+                    print_("Error saving log:", str(e))
             finally:
                 self._cleanup_cluster()
 
