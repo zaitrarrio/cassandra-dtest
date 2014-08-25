@@ -97,4 +97,4 @@ sudo ifconfig lo0 alias 127.0.0.5 up
 CASSANDRA_VERSION=2.0.9 PRINT_DEBUG=true nosetests -s -v cassandra-dtest/bootstrap_test.py:TestBootstrap.simple_bootstrap_test
 
 echo "If you are running Cassandra from a git checkout,"
-echo "be sure to set the env var CASSANDRA_HOME"
+echo "be sure to set the env var CASSANDRA_DIR"
