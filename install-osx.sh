@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+set +x
 set -e
 #Check if python, git, pip, java are available
 check_for_command() {
@@ -75,8 +75,6 @@ pull_or_clone
 #Check for all dependencies
 #Install if possible
 pip install --user cassandra-driver
-pip install --user pyyaml
-pip install --user six
 pip install --user nose
 pip install --user decorator
 echo "Installed all python dependencies"
