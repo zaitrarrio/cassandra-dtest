@@ -1,6 +1,6 @@
 #!/bin/bash
-set +x
-set +e
+set -x
+set -e
 #Check if python, git, pip, java are available
 check_for_command() {
     if hash ${COMMAND} 2>/dev/null; then
@@ -74,20 +74,20 @@ pull_or_clone
 
 #Check for all dependencies
 #Install if possible
-sudo pip install cassandra-driver
-sudo pip install pyyaml
-sudo pip install six
-sudo pip install nose
-sudo pip install decorator
+pip install --user cassandra-driver
+pip install --user pyyaml
+pip install --user six
+pip install --user nose
+pip install --user decorator
 echo "Installed all python dependencies"
 
 brew install ant
 echo "Installed all java dependencies"
 
 #Install ccm and dbapi2 via pip
-sudo pip install -e ccm
-sudo pip install -e cassandra-dbapi2
-sudo pip install -e pycassa
+pip install --user -e ccm
+pip install --user -e cassandra-dbapi2
+pip install --user -e pycassa
 
 #Run script that sets loopbacks
 sudo ifconfig lo0 alias 127.0.0.2 up
@@ -96,7 +96,7 @@ sudo ifconfig lo0 alias 127.0.0.4 up
 sudo ifconfig lo0 alias 127.0.0.5 up
 
 #Sanity Check, run simple_bootstrap_test
-CASSANDRA_VERSION=2.0.10 PRINT_DEBUG=true nosetests -s -v bootstrap_test.py:TestBootstrap.simple_bootstrap_test
+CASSANDRA_VERSION=2.0.9 PRINT_DEBUG=true nosetests -s -v cassandra-dtest/bootstrap_test.py:TestBootstrap.simple_bootstrap_test
 
 echo "If you are running Cassandra from a git checkout,"
 echo "be sure to set the env var CASSANDRA_HOME"
