@@ -1,13 +1,11 @@
 # coding: utf-8
 
-import random, math
-import re
-import time
+import random, math, re, time
 from collections import OrderedDict
 from blist import sortedset
 from uuid import uuid4, UUID
 
-from dtest import Tester
+from dtest import Tester, canReuseCluster, freshCluster
 from pyassertions import assert_invalid, assert_one, assert_none, assert_all
 from pytools import since, require, rows_to_list
 from cassandra import ConsistencyLevel
@@ -15,6 +13,7 @@ from cassandra.query import SimpleStatement
 
 cql_version="3.0.0"
 
+@canReuseCluster
 class TestCQL(Tester):
 
     def prepare(self, ordered=False, create_keyspace=True, use_cache=False, nodes=1, rf=1):
@@ -26,12 +25,14 @@ class TestCQL(Tester):
         if (use_cache):
             cluster.set_configuration_options(values={ 'row_cache_size_in_mb' : 100 })
 
-        cluster.populate(nodes).start()
+        if not cluster.nodelist():
+            cluster.populate(nodes).start()
         node1 = cluster.nodelist()[0]
         time.sleep(0.2)
 
         session = self.patient_cql_connection(node1, version=cql_version)
         if create_keyspace:
+            session.execute("DROP KEYSPACE IF EXISTS ks")
             self.create_ks(session, 'ks', rf)
         return session
 
@@ -262,6 +263,7 @@ class TestCQL(Tester):
 
         assert_invalid(cursor, "CREATE TABLE test (key text, key2 text, c int, d text, PRIMARY KEY (key, key2)) WITH COMPACT STORAGE")
 
+    @freshCluster()
     def limit_ranges_test(self):
         """ Validate LIMIT option for 'range queries' in SELECT statements """
         cursor = self.prepare(ordered=True)
@@ -627,7 +629,7 @@ class TestCQL(Tester):
         cursor.execute("INSERT INTO test(my_id, col1, value) VALUES ( 'key3', 2, 'b')")
         cursor.execute("INSERT INTO test(my_id, col1, value) VALUES ( 'key4', 4, 'd')")
         # Currently this breaks due to CASSANDRA-4612
-        query = SimpleStatement("SELECT col1 FROM test WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1", fetch_size=100000000)
+        query = SimpleStatement("SELECT col1 FROM test WHERE my_id in('key1', 'key2', 'key3') ORDER BY col1")
         res = cursor.execute(query)
 
         assert rows_to_list(res) == [[1], [2], [3]], res
@@ -1072,7 +1074,7 @@ class TestCQL(Tester):
         res = cursor.execute("SELECT * FROM users WHERE KEY='user1'")
         assert rows_to_list(res) == [], res
 
-
+    @freshCluster()
     def undefined_column_handling_test(self):
         cursor = self.prepare(ordered=True)
 
@@ -1094,6 +1096,7 @@ class TestCQL(Tester):
         res = cursor.execute("SELECT v2 FROM test WHERE k = 1")
         assert rows_to_list(res) == [[None]], res
 
+    @freshCluster()
     def range_tombstones_test(self):
         """ Test deletion by 'composite prefix' (range tombstones) """
         cluster = self.cluster
@@ -1555,6 +1558,7 @@ class TestCQL(Tester):
         res = cursor.execute("SELECT * FROM test")
         assert rows_to_list(res) == [[2, 2, None, None]], res
 
+    @freshCluster()
     def only_pk_test(self):
         """ Check table with only a PK (#4361) """
         cursor = self.prepare(ordered=True)
@@ -1606,6 +1610,7 @@ class TestCQL(Tester):
         cursor.execute("INSERT INTO test (k, t) VALUES (0, '2011-02-03')")
         assert_invalid(cursor, "INSERT INTO test (k, t) VALUES (0, '2011-42-42')")
 
+    @freshCluster()
     def range_slice_test(self):
         """ Test a regression from #1337 """
 
@@ -1632,6 +1637,7 @@ class TestCQL(Tester):
         res = cursor.execute("SELECT * FROM test")
         assert len(res) == 2, res
 
+    @freshCluster()
     def composite_index_with_pk_test(self):
 
         cursor = self.prepare(ordered=True)
@@ -1674,6 +1680,7 @@ class TestCQL(Tester):
 
         assert_invalid(cursor, "SELECT content FROM blogs WHERE time2 >= 0 AND author='foo'")
 
+    @freshCluster()
     def limit_bugs_test(self):
         """ Test for LIMIT bugs from 4579 """
 
@@ -1757,6 +1764,7 @@ class TestCQL(Tester):
         assert_invalid(cursor, "SELECT * FROM compositetest WHERE ctime>=12345679 AND key='key3' AND ctime<=12345680 LIMIT 3;")
         assert_invalid(cursor, "SELECT * FROM compositetest WHERE ctime=12345679  AND key='key3' AND ctime<=12345680 LIMIT 3")
 
+    @freshCluster()
     def order_by_multikey_test(self):
         """ Test for #4612 bug and more generaly order by when multiple C* rows are queried """
 
@@ -1786,6 +1794,7 @@ class TestCQL(Tester):
         assert_invalid(cursor, "SELECT col1 FROM test ORDER BY col1;")
         assert_invalid(cursor, "SELECT col1 FROM test WHERE my_id > 'key1' ORDER BY col1;")
 
+    @freshCluster()
     def create_alter_options_test(self):
         cursor = self.prepare(create_keyspace=False)
 
@@ -2182,20 +2191,7 @@ class TestCQL(Tester):
         res = cursor.execute("SELECT l1, l2 FROM test WHERE k = 0")
         self.assertItemsEqual(rows_to_list(res), [[[1, 24, 3], [4, 42, 6]]])
 
-    def buggy_prepare(self):
-        cursor = self.prepare()
-
-        cursor.execute("""
-            CREATE TABLE test (
-                k int PRIMARY KEY,
-                l list<int>,
-            )
-        """)
-
-        from cql import query
-        p = query.prepare_query("INSERT INTO test (k, l) VALUES (0, [?, ?])")
-        print p
-
+    @freshCluster()
     def composite_index_collections_test(self):
         cursor = self.prepare(ordered=True)
         cursor.execute("""
@@ -2220,6 +2216,7 @@ class TestCQL(Tester):
         res = cursor.execute("SELECT blog_id, content FROM blogs WHERE author='foo'")
         assert rows_to_list(res) == [[1, set(['bar1', 'bar2'])], [1, set(['bar2', 'bar3'])], [2, set(['baz'])]], res
 
+    @freshCluster()
     def truncate_clean_cache_test(self):
         cursor = self.prepare(ordered=True, use_cache=True)
 
@@ -2905,6 +2902,7 @@ class TestCQL(Tester):
         assert_one(cursor, "DELETE v FROM test2 WHERE k='k' AND i=0 IF EXISTS", [False])
         assert_one(cursor, "DELETE FROM test2 WHERE k='k' AND i=0 IF EXISTS", [False])
 
+    @freshCluster()
     def range_key_ordered_test(self):
         cursor = self.prepare(ordered=True)
 
@@ -3082,7 +3080,7 @@ class TestCQL(Tester):
         cursor.execute("INSERT INTO test(k) VALUES (0)")
         assert_one(cursor, "SELECT dateOf(t) FROM test WHERE k=0", [ None ])
 
-    @since('2.0')
+    @freshCluster()
     def cas_simple_test(self):
         cursor = self.prepare(nodes=3, rf=3)
 
@@ -4096,6 +4094,7 @@ class TestCQL(Tester):
         assert_none(cursor, """select index_name from system."IndexInfo" where table_name = 'my_test_ks'""")
 
     @since('2.1')
+    @freshCluster()
     def conditional_ddl_type_test(self):
         cursor = self.prepare(create_keyspace=False)
 
