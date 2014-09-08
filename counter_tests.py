@@ -91,7 +91,7 @@ class TestCounters(Tester):
             for i in range(0, 2):
                 time.sleep(.2)
                 nodes[i].nodetool("drain")
-                nodes[i].stop(wait_other_notice=False)
+                nodes[i].stop(wait_other_notice=False, gently=False)
                 nodes[i].start(wait_other_notice=True)
                 time.sleep(.2)
 

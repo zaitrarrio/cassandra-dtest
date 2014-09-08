@@ -202,7 +202,7 @@ class TestArchiveCommitlog(SnapshotTester):
                     shutil.copy2(f, tmp_commitlog)
 
             # Destroy the cluster
-            cluster.stop()
+            cluster.stop(gently=False)
             self.copy_logs(name=self.id().split(".")[0]+"_pre-restore")
             self._cleanup_cluster()
             cluster = self.cluster = self._get_cluster()
@@ -240,7 +240,7 @@ class TestArchiveCommitlog(SnapshotTester):
                                     [(r'^restore_point_in_time=.*$', 'restore_point_in_time={restore_time}'.format(**locals()))])
 
             debug("Restarting node1..")
-            node1.stop()
+            node1.stop(gently=False)
             node1.start()
 
             node1.nodetool('flush')

@@ -197,7 +197,7 @@ class TestConsistency(Tester):
 
         # Delete the row while first node is dead
         node1.flush()
-        node1.stop(wait_other_notice=True)
+        node1.stop(wait_other_notice=True, gently=False)
         cursor = self.patient_cql_connection(node2, 'ks')
 
         query = SimpleStatement('DELETE FROM cf WHERE key=\'k0\'', consistency_level=ConsistencyLevel.ONE)

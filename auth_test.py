@@ -37,7 +37,7 @@ class TestAuth(Tester):
 
         # make sure schema change is persistent
         debug("Stopping cluster..")
-        self.cluster.stop()
+        self.cluster.stop(gently=False)
         debug("Restarting cluster..")
         self.cluster.start(wait_other_notice=True)
 

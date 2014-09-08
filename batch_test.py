@@ -101,7 +101,7 @@ class TestBatch(Tester):
     def logged_batch_throws_uae_test(self):
         """ Test that logged batch throws UAE if there aren't enough live nodes """
         session = self.prepare(nodes=3)
-        [ node.stop(wait_other_notice=True) for node in self.cluster.nodelist()[1:] ]
+        [ node.stop(wait_other_notice=True, gently=False) for node in self.cluster.nodelist()[1:] ]
         session.consistency_level = 'ONE'
         assert_unavailable(session.execute, """
             BEGIN BATCH
@@ -113,7 +113,7 @@ class TestBatch(Tester):
     def logged_batch_doesnt_throw_uae_test(self):
         """ Test that logged batch DOES NOT throw UAE if there are at least 2 live nodes """
         session = self.prepare(nodes=3)
-        self.cluster.nodelist()[-1].stop(wait_other_notice=True)
+        self.cluster.nodelist()[-1].stop(wait_other_notice=True, gently=False)
         query = SimpleStatement("""
             BEGIN BATCH
             INSERT INTO users (id, firstname, lastname) VALUES (0, 'Jack', 'Sparrow')

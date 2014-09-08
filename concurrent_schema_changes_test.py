@@ -172,11 +172,11 @@ class TestConcurrentSchemaChanges(Tester):
         cursor = self.patient_cql_connection(node2)
 
         self.prepare_for_changes(cursor, namespace='ns2')
-        node1.stop()
+        node1.stop(gently=False)
         wait(2)
         self.make_schema_changes(cursor, namespace='ns2')
         wait(2)
-        node2.stop()
+        node2.stop(gently=False)
         wait(2)
         node1.start()
         node2.start()
@@ -200,11 +200,11 @@ class TestConcurrentSchemaChanges(Tester):
         cursor = self.patient_cql_connection(node2)
 
         self.prepare_for_changes(cursor, namespace='ns2')
-        node1.stop()
+        node1.stop(gently=False)
         wait(2)
         self.make_schema_changes(cursor, namespace='ns2')
         wait(2)
-        node2.stop()
+        node2.stop(gently=False)
         wait(2)
         node1.start()
         node2.start()
@@ -281,7 +281,7 @@ class TestConcurrentSchemaChanges(Tester):
 
         wait(2)
 
-        cluster.stop()
+        cluster.stop(gently=False)
 
         ### restore the snapshots ##
         # clear the commitlogs and data

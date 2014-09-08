@@ -70,7 +70,7 @@ class TestTopology(Tester):
 
         time.sleep(.5)
         node4.decommission()
-        node4.stop()
+        node4.stop(gently=False)
         cluster.cleanup()
         time.sleep(.5)
 
@@ -85,7 +85,7 @@ class TestTopology(Tester):
         assert_almost_equal(sizes[2], init_size)
 
         if cluster.version() <= '1.2':
-            node3.stop(wait_other_notice=True)
+            node3.stop(wait_other_notice=True, gently=False)
             node1.removeToken(tokens[2])
             time.sleep(.5)
             cluster.cleanup()
@@ -132,7 +132,7 @@ class TestTopology(Tester):
 
         cluster.flush()
 
-        node3.stop(wait_other_notice=True)
+        node3.stop(wait_other_notice=True, gently=False)
         time.sleep(.5)
 
         node4 = new_node(cluster, token=tokens[2])

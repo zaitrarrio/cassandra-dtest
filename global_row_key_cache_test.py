@@ -73,7 +73,7 @@ class TestGlobalRowKeyCache(Tester):
                 debug("Letting caches be written")
                 time.sleep(10)
                 debug("Stopping cluster")
-                cluster.stop()
+                cluster.stop(gently=False)
                 time.sleep(1)
                 debug("Starting cluster")
                 cluster.start()
