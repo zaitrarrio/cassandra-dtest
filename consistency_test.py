@@ -226,7 +226,7 @@ class TestConsistency(Tester):
         self.create_ks(cursor, 'ks', 2)
         create_c1c2_table(self, cursor)
 
-        node2.stop(wait_other_notice=True)
+        node2.stop(wait_other_notice=True, gently=False)
 
         for n in xrange(0, 100):
             insert_c1c2(cursor, n, ConsistencyLevel.ONE)
@@ -235,7 +235,7 @@ class TestConsistency(Tester):
         node2.start()
         node1.watch_log_for(["Finished hinted"], from_mark=log_mark, timeout=90)
 
-        node1.stop(wait_other_notice=True)
+        node1.stop(wait_other_notice=True, gently=False)
 
         # Check node2 for all the keys that should have been delivered via HH
         cursor = self.patient_cql_connection(node2, keyspace='ks')
@@ -257,7 +257,7 @@ class TestConsistency(Tester):
         self.create_ks(cursor, 'ks', 2)
         create_c1c2_table(self, cursor, read_repair=1.0)
 
-        node2.stop(wait_other_notice=True)
+        node2.stop(wait_other_notice=True, gently=False)
 
         for n in xrange(0, 10000):
             insert_c1c2(cursor, n, ConsistencyLevel.ONE)
@@ -268,7 +268,7 @@ class TestConsistency(Tester):
         for n in xrange(0, 10000):
             query_c1c2(cursor, n, ConsistencyLevel.QUORUM)
 
-        node1.stop(wait_other_notice=True)
+        node1.stop(wait_other_notice=True, gently=False)
 
         # Check node2 for all the keys that should have been repaired
         cursor = self.patient_cql_connection(node2, keyspace='ks')
@@ -330,7 +330,7 @@ class TestConsistency(Tester):
             insert_c1c2(cursor, n, CL)
 
         debug("Taking down node1")
-        node1.stop(wait_other_notice=True)
+        node1.stop(wait_other_notice=True, gently=False)
 
         debug("Reading back data.")
         for n in xrange(100):
@@ -340,7 +340,7 @@ class TestConsistency(Tester):
         to_stop = self.cluster.nodes["node%d" % node_number]
         next_node = self.cluster.nodes["node%d" % (((node_number + 1) % 3) + 1)]
         to_stop.flush()
-        to_stop.stop(wait_other_notice=True)
+        to_stop.stop(wait_other_notice=True, gently=False)
         cursor = self.patient_cql_connection(next_node, 'ks')
         query = 'BEGIN BATCH '
         query = query + 'DELETE FROM cf WHERE key=\'k0\' AND c=\'c%06d\'; ' % column
