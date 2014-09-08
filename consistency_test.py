@@ -32,32 +32,32 @@ class TestConsistency(Tester):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.QUORUM, ConsistencyLevel.QUORUM)
 
         #Stop a node and retest
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         for n in xrange(0, 100):
             insert_c1c2(session, n, ConsistencyLevel.QUORUM)
             query_c1c2(session2, n, ConsistencyLevel.QUORUM)
 
-        self.cluster.nodelist()[1].stop()
+        self.cluster.nodelist()[1].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.QUORUM)
 
     def all_all_test(self):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.ALL, ConsistencyLevel.ALL)
 
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.ALL)
 
     def one_one_test(self):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.ONE, ConsistencyLevel.ONE)
 
         #Stop a node and retest
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         for n in xrange(0, 100):
             insert_c1c2(session, n, ConsistencyLevel.ONE)
             query_c1c2(session2, n, ConsistencyLevel.ONE)
 
 
         #Stop a node and retest
-        self.cluster.nodelist()[1].stop()
+        self.cluster.nodelist()[1].stop(gently=False)
         for n in xrange(0, 100):
             insert_c1c2(session, n, ConsistencyLevel.ONE)
             query_c1c2(session2, n, ConsistencyLevel.ONE)
@@ -66,14 +66,14 @@ class TestConsistency(Tester):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.ONE, ConsistencyLevel.ALL)
 
         #Stop a node and retest
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         for n in xrange(0, 100):
             insert_c1c2(session, n, ConsistencyLevel.ONE)
         assert_unavailable(query_c1c2, session2, 100, ConsistencyLevel.ALL)
 
 
         #Stop a node and retest
-        self.cluster.nodelist()[1].stop()
+        self.cluster.nodelist()[1].stop(gently=False)
         for n in xrange(0, 100):
             insert_c1c2(session, n, ConsistencyLevel.ONE)
         assert_unavailable(query_c1c2, session2, 100, ConsistencyLevel.ALL)
@@ -82,13 +82,13 @@ class TestConsistency(Tester):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.ALL, ConsistencyLevel.ONE)
 
         #Stop a node and retest
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.ALL)
         for n in xrange(0, 100):
             query_c1c2(session2, n, ConsistencyLevel.ONE)
 
         #Stop a node and retest
-        self.cluster.nodelist()[1].stop()
+        self.cluster.nodelist()[1].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.ALL)
         for n in xrange(0, 100):
             query_c1c2(session2, n, ConsistencyLevel.ONE)
@@ -97,12 +97,12 @@ class TestConsistency(Tester):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.QUORUM, ConsistencyLevel.TWO)
 
         #Stop a node and retest
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         for n in xrange(0, 100):
             insert_c1c2(session, n, ConsistencyLevel.QUORUM)
             query_c1c2(session2, n, ConsistencyLevel.TWO)
 
-        self.cluster.nodelist()[1].stop()
+        self.cluster.nodelist()[1].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.QUORUM)
         assert_unavailable(query_c1c2, session2, 100, ConsistencyLevel.TWO)
 
@@ -110,12 +110,12 @@ class TestConsistency(Tester):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.QUORUM, ConsistencyLevel.THREE)
 
         #Stop a node and retest
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         for n in xrange(0, 100):
             insert_c1c2(session, n, ConsistencyLevel.QUORUM)
         assert_unavailable(query_c1c2, session2, 100, ConsistencyLevel.THREE)
 
-        self.cluster.nodelist()[1].stop()
+        self.cluster.nodelist()[1].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.QUORUM)
         assert_unavailable(query_c1c2, session2, 100, ConsistencyLevel.THREE)
 
@@ -123,12 +123,12 @@ class TestConsistency(Tester):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.TWO, ConsistencyLevel.TWO)
 
         #Stop a node and retest
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         for n in xrange(0, 100):
             insert_c1c2(session, n, ConsistencyLevel.TWO)
             query_c1c2(session2, n, ConsistencyLevel.TWO)
 
-        self.cluster.nodelist()[1].stop()
+        self.cluster.nodelist()[1].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.TWO)
         assert_unavailable(query_c1c2, session2, 100, ConsistencyLevel.TWO)
 
@@ -136,13 +136,13 @@ class TestConsistency(Tester):
         session, session2 = self.cl_cl_prepare(ConsistencyLevel.THREE, ConsistencyLevel.ONE)
 
         #Stop a node and retest
-        self.cluster.nodelist()[2].stop()
+        self.cluster.nodelist()[2].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.THREE)
         for n in xrange(0, 100):
             query_c1c2(session2, n, ConsistencyLevel.ONE)
 
         #Stop a node and retest
-        self.cluster.nodelist()[1].stop()
+        self.cluster.nodelist()[1].stop(gently=False)
         assert_unavailable(insert_c1c2, session, 100, ConsistencyLevel.THREE)
         for n in xrange(0, 100):
             query_c1c2(session2, n, ConsistencyLevel.ONE)
