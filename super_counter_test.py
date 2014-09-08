@@ -49,7 +49,7 @@ class TestSuperCounterClusterRestart(Tester):
 #            node.flush()
 
         debug("Stopping cluster")
-        cluster.stop()
+        cluster.stop(gently=False)
         time.sleep(5)
         debug("Starting cluster")
         cluster.start()

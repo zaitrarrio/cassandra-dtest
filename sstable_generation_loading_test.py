@@ -64,7 +64,7 @@ class TestSSTableGenerationAndLoading(Tester):
             node1.stress(['write', 'n=10000', '-rate', 'threads=8'])
         node1.flush()
         node1.compact()
-        node1.stop()
+        node1.stop(gently=False)
         time.sleep(1)
         path = ""
         if version < "2.1":
@@ -152,9 +152,9 @@ class TestSSTableGenerationAndLoading(Tester):
             cursor.execute("UPDATE counter1 SET v=v+1 WHERE KEY='%d'" % i)
 
         node1.nodetool('drain')
-        node1.stop()
+        node1.stop(gently=False)
         node2.nodetool('drain')
-        node2.stop()
+        node2.stop(gently=False)
 
         debug("Making a copy of the sstables")
         # make a copy of the sstables

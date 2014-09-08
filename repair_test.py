@@ -11,7 +11,7 @@ class TestRepair(Tester):
         for node in self.cluster.nodes.values():
             if node.is_running() and node is not node_to_check:
                 stopped_nodes.append(node)
-                node.stop(wait_other_notice=True)
+                node.stop(wait_other_notice=True, gently=False)
 
         cursor = self.patient_cql_connection(node_to_check, 'ks')
         result = cursor.execute("SELECT * FROM cf LIMIT %d" % (rows * 2))
@@ -58,7 +58,7 @@ class TestRepair(Tester):
         for i in xrange(0, 1000):
             insert_c1c2(cursor, i, ConsistencyLevel.ALL)
         node3.flush()
-        node3.stop()
+        node3.stop(gently=False)
         insert_c1c2(cursor, 1000, ConsistencyLevel.TWO)
         node3.start(wait_other_notice=True)
         for i in xrange(1001, 2001):

@@ -40,7 +40,7 @@ class TestJson(Tester):
 
         debug("Flushing and stopping cluster...")
         node1.flush()
-        cluster.stop()
+        cluster.stop(gently=False)
 
         debug("Exporting to JSON file...")
         json_path = tempfile.mktemp(suffix='.schema.json')
@@ -67,7 +67,7 @@ class TestJson(Tester):
 
         cursor.execute("INSERT INTO Test. users (user_name, password, gender, state, birth_year) VALUES('gandalf', 'p@$$', 'male', 'WA', 1955);")
         node1.flush()
-        cluster.stop()
+        cluster.stop(gently=False)
 
         debug("Importing JSON file...")
         with open(json_path) as f:

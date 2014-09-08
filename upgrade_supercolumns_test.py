@@ -49,7 +49,7 @@ class TestSCUpgrade(Tester):
         # Upgrade node 1
         node1.flush()
         time.sleep(.5)
-        node1.stop(wait_other_notice=True)
+        node1.stop(wait_other_notice=True, gently=False)
         self.set_node_to_current_version(node1)
         node1.start(wait_other_notice=True)
         time.sleep(.5)
@@ -175,7 +175,7 @@ class TestSCUpgrade(Tester):
             debug('Shutting down node: ' + node.name)
             node.drain()
             node.watch_log_for("DRAINED")
-            node.stop(wait_other_notice=False)
+            node.stop(wait_other_notice=False, gently=False)
 
         # Update Cassandra Directory
         for node in nodes:

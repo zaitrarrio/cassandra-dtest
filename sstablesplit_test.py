@@ -49,7 +49,7 @@ class TestSSTableSplit(Tester):
     def _do_split(self, node, version):
         debug("Run sstablesplit")
         time.sleep(5.0)
-        node.stop()
+        node.stop(gently=False)
         origsstable = node.get_sstables('Keyspace1', '')
         debug("Original sstable before split: %s" % origsstable)
         node.run_sstablesplit( keyspace='Keyspace1' )

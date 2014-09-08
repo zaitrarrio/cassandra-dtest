@@ -30,7 +30,7 @@ class TestBootstrapConsistency(Tester):
 
         node1.flush()
         debug("Taking down node1")
-        node1.stop(wait_other_notice=True)
+        node1.stop(wait_other_notice=True, gently=False)
 
         debug("Writing data to node2")
         for n in xrange(30,1000):
@@ -71,7 +71,7 @@ class TestBootstrapConsistency(Tester):
 
         node1.flush()
         debug("Taking down node1")
-        node1.stop(wait_other_notice=True)
+        node1.stop(wait_other_notice=True, gently=False)
 
         debug("Writing data to only node2")
         for n in xrange(30,1000):
