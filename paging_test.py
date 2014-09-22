@@ -5,7 +5,7 @@ from cassandra import InvalidRequest
 from cassandra.query import SimpleStatement, dict_factory
 from dtest import Tester
 
-from datahelp import create_rows, parse_data_into_dicts, flatten_into_set
+from datahelp import create_rows, parse_data_into_dicts, flatten_into_set, OnDiskCassLog
 
 
 class Page(object):
@@ -537,6 +537,46 @@ class TestPagingData(BasePagingTester, PageAssertionMixin):
         self.assertEqual(pf.retrieved_pagecount(), 2)
         self.assertEqual(pf.num_results_all_pages(), [400, 200])
         self.assertEqualIgnoreOrder(expected_data, pf.all_retrieved_data())
+
+    def test_paging_lots_of_data(self):
+        cursor = self.prepare()
+        self.create_ks(cursor, 'test_paging_size', 2)
+        cursor.execute("CREATE TABLE paging_test ( id int, value int, PRIMARY KEY (id, value) )")
+
+        def hacky_counter(text):
+            # count remembering function by putting a sneaky attribute on this function itself
+            if getattr(hacky_counter, 'current_num', None) is None:
+                hacky_counter.current_num = 0
+
+            hacky_counter.current_num += 1
+            return hacky_counter.current_num
+
+        data = """
+                  | id | value                  |
+         *10000000| 1  | [replaced with random] |
+         *10000000| 2  | [replaced with random] |
+            """
+        data_log = OnDiskCassLog()
+        create_rows(
+            data_log,
+            data,
+            cursor,
+            'paging_test',
+            format_funcs={'id': int, 'value': hacky_counter}
+        )
+
+        for item in data_log.step():
+            print item
+        # future = cursor.execute_async(
+        #     SimpleStatement("select * from paging_test where id in (1,2)", fetch_size=3000)
+        # )
+
+        # pf = PageFetcher(future).request_all_pages()
+
+        # self.assertEqual(pf.retrieved_pagecount(), 4)
+        # self.assertEqual(pf.num_results_all_pages(), [3000, 3000, 3000, 1000])
+
+        # self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
 
 
 class TestPagingSizeChange(BasePagingTester, PageAssertionMixin):

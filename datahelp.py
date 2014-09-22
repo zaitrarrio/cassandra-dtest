@@ -1,4 +1,10 @@
+# Tools for creating and verifying data
+import cPickle
 import re
+
+from cassandra.concurrent import execute_concurrent_with_args
+
+from cPickle import HIGHEST_PROTOCOL
 
 
 def strip(val):
@@ -44,24 +50,20 @@ def parse_row_into_dict(row, headers, format_funcs=None):
     if row_has_multiplier(row):
         row_multiplier = get_row_multiplier(row)
         row = '|'.join(row_cells[1:])  # cram remainder of row back into foo|bar format
-        multirows = []
 
-        for i in range(row_multiplier):
-            multirows.append(
-                parse_row_into_dict(row, headers, format_funcs=format_funcs)
-            )
-        return multirows
+        for i in xrange(row_multiplier):
+            yield parse_row_into_dict(row, headers, format_funcs=format_funcs)
+    else:
+        row_map = dict(zip(headers, row_cells))
 
-    row_map = dict(zip(headers, row_cells))
+        if format_funcs:
+            for colname, value in row_map.items():
+                func = format_funcs.get(colname)
 
-    if format_funcs:
-        for colname, value in row_map.items():
-            func = format_funcs.get(colname)
+                if func is not None:
+                    row_map[colname] = func(value)
 
-            if func is not None:
-                row_map[colname] = func(value)
-
-    return row_map
+        yield row_map
 
 
 def parse_data_into_dicts(data, format_funcs=None):
@@ -76,18 +78,15 @@ def parse_data_into_dicts(data, format_funcs=None):
     # remove headers
     headers = parse_headers_into_list(rows.pop(0))
 
-    values = []
-
     for row in rows:
         if row_has_multiplier(row):
-            values.extend(parse_row_into_dict(row, headers, format_funcs=format_funcs))
+            for r in parse_row_into_dict(row, headers, format_funcs=format_funcs):
+                yield r
         else:
-            values.append(parse_row_into_dict(row, headers, format_funcs=format_funcs))
-
-    return values
+            yield parse_row_into_dict(row, headers, format_funcs=format_funcs)
 
 
-def create_rows(data, cursor, table_name, format_funcs=None, prefix='', postfix=''):
+def create_rows(log, data, cursor, table_name, format_funcs=None, prefix='', postfix=''):
     """
     Creates db rows using given cursor, with table name provided,
     using data formatted like:
@@ -97,25 +96,46 @@ def create_rows(data, cursor, table_name, format_funcs=None, prefix='', postfix=
 
     format_funcs should be a dictionary of {columnname: function} if data needs to be formatted
     before being included in CQL.
-
-    Returns a list of maps describing the data created.
     """
-    values = []
     prepared = None
+    current_chunk = []
+    count = 0
 
-    for row_dict in parse_data_into_dicts(data, format_funcs=format_funcs):
-        # prepare if this is the first statement
-        if prepared is None:
-            prepared = cursor.prepare("{prefix} INSERT INTO {table} ({cols}) values ({vals}) {postfix}".format(
-                prefix=prefix, table=table_name, cols=', '.join(row_dict.keys()),
-                vals=', '.join('?' for k in row_dict.keys()), postfix=postfix)
-            )
+    for gens in parse_data_into_dicts(data, format_funcs=format_funcs):
+        for row_dict in gens:
+            count += 1
 
-        bound_stmt = prepared.bind(row_dict.values())
-        cursor.execute(bound_stmt)
-        values.append(row_dict)
+            mill, remainder = divmod(count, 1000000)
+            if remainder == 0:
+                print "{} million rows created".format(mill)
 
-    return values
+            # prepare if this is the first statement
+            if prepared is None:
+                prepared = cursor.prepare("{prefix} INSERT INTO {table} ({cols}) values ({vals}) {postfix}".format(
+                    prefix=prefix, table=table_name, cols=', '.join(row_dict.keys()),
+                    vals=', '.join('?' for k in row_dict.keys()), postfix=postfix)
+                )
+
+            current_chunk.append(row_dict)
+
+            if len(current_chunk) > 1000:
+                current_chunk_values = [r.values() for r in current_chunk]
+
+                for i, (status, result) in enumerate(execute_concurrent_with_args(cursor, prepared, current_chunk_values)):
+                    log.append(current_chunk[i])
+
+                # reset for building the next chunk
+                current_chunk = []
+
+    # write any remaining rows that are part of a last chunk
+    if len(current_chunk) > 0:
+        current_chunk_values = [r.values() for r in current_chunk]
+
+        for i, (status, result) in enumerate(execute_concurrent_with_args(cursor, prepared, current_chunk_values)):
+            log.append(current_chunk[i])
+
+    print("create_rows complete")
+    log.mark_complete()
 
 
 def flatten_into_set(iterable):
@@ -134,3 +154,47 @@ def flatten(list_of_dicts):
         flattened.append('__'.join(items))
 
     return flattened
+
+
+class InMemoryCassLog(list):
+    _complete = False
+
+    def mark_complete(self):
+        self._complete = True
+
+    def is_complete(self):
+        return self._complete
+
+
+class OnDiskCassLog(object):
+    _complete = False
+    _filename = None
+    _fh_append = None
+
+    def __init__(self, filename=None):
+        if filename is None:
+            self._filename = 'casslogfile.txt'
+        else:
+            self._filename = filename
+
+        # fh only for appending
+        self._fh_append = open(self._filename, 'ab')
+
+    def append(self, val):
+        cPickle.dump(val, self._fh_append, HIGHEST_PROTOCOL)
+
+    def mark_complete(self):
+        self._fh_append.flush()
+        self._fh_append.close()
+        self._complete = True
+
+    def is_complete(self):
+        return self._complete
+
+    def step(self):
+        with open(self._filename, 'rb') as fh:
+            while True:
+                try:
+                    yield cPickle.load(fh)
+                except EOFError:
+                    break
