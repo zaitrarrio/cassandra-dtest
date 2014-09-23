@@ -1,7 +1,6 @@
 # Tools for creating and verifying data
 import cPickle
 import re
-
 from cassandra.concurrent import execute_concurrent_with_args
 
 from cPickle import HIGHEST_PROTOCOL

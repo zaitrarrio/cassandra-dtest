@@ -24,13 +24,14 @@ class PageFetcher(object):
     and provides paged data for testing.
 
     The first page is automatically retrieved, so an initial
-    call to request_page is actually getting the *second* page!
+    call to request_one is actually getting the *second* page!
     """
     pages = None
     error = None
     future = None
     requested_pages = None
     retrieved_pages = None
+    retrieved_empty_pages = None
 
     def __init__(self, future):
         self.pages = []
@@ -45,6 +46,7 @@ class PageFetcher(object):
         # won't be incremented until it actually arrives
         self.requested_pages = 1
         self.retrieved_pages = 0
+        self.retrieved_empty_pages = 0
 
         # wait for the first page to arrive, otherwise we may call
         # future.has_more_pages too early, since it should only be
@@ -54,6 +56,7 @@ class PageFetcher(object):
     def handle_page(self, rows):
         # occasionally get a final blank page that is useless
         if rows == []:
+            self.retrieved_empty_pages += 1
             return
 
         self.retrieved_pages += 1
@@ -67,20 +70,7 @@ class PageFetcher(object):
         self.error = exc
         raise exc
 
-    def request_all_pages(self):
-        """
-        Requests any remaining pages.
-
-        If the future is exhausted, this is a no-op.
-        """
-        while self.future.has_more_pages:
-            self.future.start_fetching_next_page()
-            self.requested_pages += 1
-            self.wait()
-
-        return self
-
-    def request_page(self):
+    def request_one(self):
         """
         Requests the next page if there is one.
 
@@ -93,27 +83,40 @@ class PageFetcher(object):
 
         return self
 
+    def request_all(self):
+        """
+        Requests any remaining pages.
+
+        If the future is exhausted, this is a no-op.
+        """
+        while self.future.has_more_pages:
+            self.future.start_fetching_next_page()
+            self.requested_pages += 1
+            self.wait()
+
+        return self
+
     def wait(self, seconds=5):
         """
         Blocks until all *requested* pages have been returned.
 
-        Requests are made by calling request_page and/or request_all_pages.
+        Requests are made by calling request_one and/or request_all.
 
         Raises RuntimeError if seconds is exceeded.
         """
         expiry = time.time() + seconds
 
         while time.time() < expiry:
-            if self.requested_pages == self.retrieved_pages:
+            if self.requested_pages == (self.retrieved_pages + self.retrieved_empty_pages):
                 return self
 
         raise RuntimeError("Requested pages were not delivered before timeout.")
 
-    def retrieved_pagecount(self):
+    def pagecount(self):
         """
-        Returns count of *retrieved* pages.
+        Returns count of *retrieved* pages which were not empty.
 
-        Pages are retrieved by requesting them with request_page and/or request_all_pages.
+        Pages are retrieved by requesting them with request_one and/or request_all.
         """
         return len(self.pages)
 
@@ -123,22 +126,22 @@ class PageFetcher(object):
         """
         return len(self.pages[page_num - 1].data)
 
-    def num_results_all_pages(self):
+    def num_results_all(self):
         return [len(page.data) for page in self.pages]
 
-    def retrieved_page_data(self, page_num):
+    def page_data(self, page_num):
         """
         Returns retreived data found at pagenum.
 
-        The page should have already been requested with request_page and/or request_all_pages.
+        The page should have already been requested with request_one and/or request_all.
         """
         return self.pages[page_num - 1].data
 
-    def all_retrieved_data(self):
+    def all_data(self):
         """
         Returns all retrieved data flattened into a single list (instead of separated into Page objects).
 
-        The page(s) should have already been requested with request_page and/or request_all_pages.
+        The page(s) should have already been requested with request_one and/or request_all.
         """
         all_pages_combined = []
         for page in self.pages:
@@ -192,8 +195,8 @@ class TestPagingSize(BasePagingTester, PageAssertionMixin):
         )
 
         pf = PageFetcher(future)
-        pf.request_all_pages()
-        self.assertEqual([], pf.all_retrieved_data())
+        pf.request_all()
+        self.assertEqual([], pf.all_data())
         self.assertFalse(pf.has_more_pages)
 
     def test_with_less_results_than_page_size(self):
@@ -215,10 +218,10 @@ class TestPagingSize(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test", fetch_size=100)
         )
         pf = PageFetcher(future)
-        pf.request_all_pages()
+        pf.request_all()
 
         self.assertFalse(pf.has_more_pages)
-        self.assertEqual(len(expected_data), len(pf.all_retrieved_data()))
+        self.assertEqual(len(expected_data), len(pf.all_data()))
 
     def test_with_more_results_than_page_size(self):
         cursor = self.prepare()
@@ -243,13 +246,13 @@ class TestPagingSize(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test", fetch_size=5)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.retrieved_pagecount(), 2)
-        self.assertEqual(pf.num_results_all_pages(), [5, 4])
+        self.assertEqual(pf.pagecount(), 2)
+        self.assertEqual(pf.num_results_all(), [5, 4])
 
         # make sure expected and actual have same data elements (ignoring order)
-        self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
+        self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
 
     def test_with_equal_results_to_page_size(self):
         cursor = self.prepare()
@@ -270,17 +273,17 @@ class TestPagingSize(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test", fetch_size=5)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.num_results_all_pages(), [5])
-        self.assertEqual(pf.retrieved_pagecount(), 1)
+        self.assertEqual(pf.num_results_all(), [5])
+        self.assertEqual(pf.pagecount(), 1)
 
         # make sure expected and actual have same data elements (ignoring order)
-        self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
+        self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
 
-    def test_zero_page_size_ignored(self):
+    def test_undefined_page_size_default(self):
         """
-        If the page size <= 0 then the default fetch size is used.
+        If the page size isn't sent then the default fetch size is used.
         """
         cursor = self.prepare()
         self.create_ks(cursor, 'test_paging_size', 2)
@@ -290,22 +293,21 @@ class TestPagingSize(BasePagingTester, PageAssertionMixin):
             return uuid.uuid1()
 
         data = """
-              | id     |value   |
-         *5001| [uuid] |testing |
+               | id     |value   |
+          *5001| [uuid] |testing |
             """
         expected_data = create_rows(data, cursor, 'paging_test', format_funcs={'id': random_txt, 'value': unicode})
 
         future = cursor.execute_async(
-            SimpleStatement("select * from paging_test", fetch_size=0)
+            SimpleStatement("select * from paging_test")
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.retrieved_pagecount(), 2)
-        self.assertEqual(pf.num_results_all_pages(), [5000, 1])
+        self.assertEqual(pf.num_results_all(), [5000, 1])
 
         # make sure expected and actual have same data elements (ignoring order)
-        self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
+        self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
 
 
 class TestPagingWithModifiers(BasePagingTester, PageAssertionMixin):
@@ -348,13 +350,13 @@ class TestPagingWithModifiers(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test where id = 1 order by value asc", fetch_size=5)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.retrieved_pagecount(), 2)
-        self.assertEqual(pf.num_results_all_pages(), [5, 5])
+        self.assertEqual(pf.pagecount(), 2)
+        self.assertEqual(pf.num_results_all(), [5, 5])
 
         # these should be equal (in the same order)
-        self.assertEqual(pf.all_retrieved_data(), expected_data)
+        self.assertEqual(pf.all_data(), expected_data)
 
         # make sure we don't allow paging over multiple partitions with order because that's weird
         with self.assertRaisesRegexp(InvalidRequest, 'Cannot page queries with both ORDER BY and a IN restriction on the partition key'):
@@ -384,24 +386,24 @@ class TestPagingWithModifiers(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test limit 5", fetch_size=9)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.retrieved_pagecount(), 1)
-        self.assertEqual(pf.num_results_all_pages(), [5])
+        self.assertEqual(pf.pagecount(), 1)
+        self.assertEqual(pf.num_results_all(), [5])
 
         # make sure all the data retrieved is a subset of input data
-        self.assertIsSubsetOf(pf.all_retrieved_data(), expected_data)
+        self.assertIsSubsetOf(pf.all_data(), expected_data)
 
         # let's do another query with a limit larger than one page
         future = cursor.execute_async(
             SimpleStatement("select * from paging_test limit 8", fetch_size=5)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.retrieved_pagecount(), 2)
-        self.assertEqual(pf.num_results_all_pages(), [5, 3])
-        self.assertIsSubsetOf(pf.all_retrieved_data(), expected_data)
+        self.assertEqual(pf.pagecount(), 2)
+        self.assertEqual(pf.num_results_all(), [5, 3])
+        self.assertIsSubsetOf(pf.all_data(), expected_data)
 
     def test_with_allow_filtering(self):
         cursor = self.prepare()
@@ -426,14 +428,14 @@ class TestPagingWithModifiers(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test where value = 'and more testing' ALLOW FILTERING", fetch_size=4)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.retrieved_pagecount(), 2)
-        self.assertEqual(pf.num_results_all_pages(), [4, 3])
+        self.assertEqual(pf.pagecount(), 2)
+        self.assertEqual(pf.num_results_all(), [4, 3])
 
         # make sure the allow filtering query matches the expected results (ignoring order)
         self.assertEqualIgnoreOrder(
-            pf.all_retrieved_data(),
+            pf.all_data(),
             parse_data_into_dicts(
                 """
                 |id|value           |
@@ -468,12 +470,12 @@ class TestPagingData(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test where id = 1", fetch_size=3000)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.retrieved_pagecount(), 4)
-        self.assertEqual(pf.num_results_all_pages(), [3000, 3000, 3000, 1000])
+        self.assertEqual(pf.pagecount(), 4)
+        self.assertEqual(pf.num_results_all(), [3000, 3000, 3000, 1000])
 
-        self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
+        self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
 
     def test_paging_across_multi_wide_rows(self):
         cursor = self.prepare()
@@ -494,12 +496,12 @@ class TestPagingData(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test where id in (1,2)", fetch_size=3000)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
-        self.assertEqual(pf.retrieved_pagecount(), 4)
-        self.assertEqual(pf.num_results_all_pages(), [3000, 3000, 3000, 1000])
+        self.assertEqual(pf.pagecount(), 4)
+        self.assertEqual(pf.num_results_all(), [3000, 3000, 3000, 1000])
 
-        self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
+        self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
 
     def test_paging_using_secondary_indexes(self):
         cursor = self.prepare()
@@ -529,7 +531,7 @@ class TestPagingData(BasePagingTester, PageAssertionMixin):
             SimpleStatement("select * from paging_test where mybool = true", fetch_size=400)
         )
 
-        pf = PageFetcher(future).request_all_pages()
+        pf = PageFetcher(future).request_all()
 
         # the query only searched for True rows, so let's pare down the expectations for comparison
         expected_data = filter(lambda x: x.get('mybool') is True, all_data)
@@ -579,100 +581,6 @@ class TestPagingData(BasePagingTester, PageAssertionMixin):
         # self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
 
 
-class TestPagingSizeChange(BasePagingTester, PageAssertionMixin):
-    """
-    Tests concerned with paging when the page size is changed between page retrievals.
-    """
-    def test_page_size_change(self):
-        cursor = self.prepare()
-        self.create_ks(cursor, 'test_paging_size', 2)
-        cursor.execute("CREATE TABLE paging_test ( id int, sometext text, PRIMARY KEY (id, sometext) )")
-
-        def random_txt(text):
-            return unicode(uuid.uuid1())
-
-        data = """
-              | id | sometext |
-         *2000| 1  | [random] |
-            """
-        create_rows(data, cursor, 'paging_test', format_funcs={'id': int, 'sometext': random_txt})
-        stmt = SimpleStatement("select * from paging_test where id = 1", fetch_size=1000)
-
-        future = cursor.execute_async(stmt)
-
-        pf = PageFetcher(future)
-
-        # first page requested/retrieved automatically so no need to request
-        self.assertEqual(pf.retrieved_pagecount(), 1)
-        self.assertEqual(pf.num_results(1), 1000)
-
-        stmt.fetch_size = 500
-
-        pf.request_page()
-        self.assertEqual(pf.retrieved_pagecount(), 2)
-        self.assertEqual(pf.num_results(2), 500)
-
-        stmt.fetch_size = 100
-
-        pf.request_all_pages()
-        self.assertEqual(pf.retrieved_pagecount(), 7)
-        self.assertEqual(pf.num_results_all_pages(), [1000, 500, 100, 100, 100, 100, 100])
-
-    def test_page_size_set_multiple_times_before(self):
-        cursor = self.prepare()
-        self.create_ks(cursor, 'test_paging_size', 2)
-        cursor.execute("CREATE TABLE paging_test ( id int, sometext text, PRIMARY KEY (id, sometext) )")
-
-        def random_txt(text):
-            return unicode(uuid.uuid1())
-
-        data = """
-              | id | sometext |
-         *2000| 1  | [random] |
-            """
-        create_rows(data, cursor, 'paging_test', format_funcs={'id': int, 'sometext': random_txt})
-        stmt = SimpleStatement("select * from paging_test where id = 1", fetch_size=1000)
-        stmt.fetch_size = 100
-        stmt.fetch_size = 500
-
-        future = cursor.execute_async(stmt)
-
-        pf = PageFetcher(future).request_all_pages()
-
-        self.assertEqual(pf.retrieved_pagecount(), 4)
-        self.assertEqual(pf.num_results_all_pages(), [500, 500, 500, 500])
-
-    def test_page_size_after_results_all_retrieved(self):
-        """
-        Confirm that page size change does nothing after results are exhausted.
-        """
-        cursor = self.prepare()
-        self.create_ks(cursor, 'test_paging_size', 2)
-        cursor.execute("CREATE TABLE paging_test ( id int, sometext text, PRIMARY KEY (id, sometext) )")
-
-        def random_txt(text):
-            return unicode(uuid.uuid1())
-
-        data = """
-              | id | sometext |
-         *2000| 1  | [random] |
-            """
-        create_rows(data, cursor, 'paging_test', format_funcs={'id': int, 'sometext': random_txt})
-        stmt = SimpleStatement("select * from paging_test where id = 1", fetch_size=500)
-
-        future = cursor.execute_async(stmt)
-
-        pf = PageFetcher(future)
-
-        pf.request_all_pages()
-        self.assertEqual(pf.retrieved_pagecount(), 4)
-        self.assertEqual(pf.num_results_all_pages(), [500, 500, 500, 500])
-
-        stmt.fetch_size = 200
-        pf.request_page()
-        self.assertEqual(pf.num_results_all_pages(), [500, 500, 500, 500])
-
-
 class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
     """
     Tests concerned with paging when the queried dataset changes while pages are being retrieved.
@@ -704,11 +612,11 @@ class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
         # let's add another row for that first partition (id=1) and make sure it won't sneak into results
         cursor.execute(SimpleStatement("insert into paging_test (id, mytext) values (1, 'foo')"))
 
-        pf.request_all_pages()
-        self.assertEqual(pf.retrieved_pagecount(), 2)
-        self.assertEqual(pf.num_results_all_pages(), [501, 499])
+        pf.request_all()
+        self.assertEqual(pf.pagecount(), 2)
+        self.assertEqual(pf.num_results_all(), [501, 499])
 
-        self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
+        self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
 
     def test_data_change_impacting_later_page(self):
         cursor = self.prepare()
@@ -736,13 +644,13 @@ class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
         # should still result in the row being seen on the subsequent pages
         cursor.execute(SimpleStatement("insert into paging_test (id, mytext) values (2, 'foo')"))
 
-        pf.request_all_pages()
-        self.assertEqual(pf.retrieved_pagecount(), 2)
-        self.assertEqual(pf.num_results_all_pages(), [500, 500])
+        pf.request_all()
+        self.assertEqual(pf.pagecount(), 2)
+        self.assertEqual(pf.num_results_all(), [500, 500])
 
         # add the new row to the expected data and then do a compare
         expected_data.append({u'id': 2, u'mytext': u'foo'})
-        self.assertEqualIgnoreOrder(pf.all_retrieved_data(), expected_data)
+        self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
 
     def test_data_delete_removing_remainder(self):
         cursor = self.prepare()
@@ -770,9 +678,9 @@ class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
         # delete the results that would have shown up on page 2
         cursor.execute(SimpleStatement("delete from paging_test where id = 2"))
 
-        pf.request_all_pages()
-        self.assertEqual(pf.retrieved_pagecount(), 1)
-        self.assertEqual(pf.num_results_all_pages(), [500])
+        pf.request_all()
+        self.assertEqual(pf.pagecount(), 1)
+        self.assertEqual(pf.num_results_all(), [500])
 
     def test_row_TTL_expiry_during_paging(self):
         cursor = self.prepare()
@@ -812,9 +720,9 @@ class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
         # sleep so that the remaining TTL rows from partition id=2 expire
         time.sleep(15)
 
-        pf.request_all_pages()
-        self.assertEqual(pf.retrieved_pagecount(), 3)
-        self.assertEqual(pf.num_results_all_pages(), [300, 300, 200])
+        pf.request_all()
+        self.assertEqual(pf.pagecount(), 3)
+        self.assertEqual(pf.num_results_all(), [300, 300, 200])
 
     def test_cell_TTL_expiry_during_paging(self):
         cursor = self.prepare()
@@ -848,7 +756,7 @@ class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
         pf = PageFetcher(future)
 
         # no need to request page here, because the first page is automatically retrieved
-        page1 = pf.retrieved_page_data(1)
+        page1 = pf.page_data(1)
         self.assertEqualIgnoreOrder(page1, data[:500])
 
         # set some TTLs for data on page 3
@@ -862,8 +770,8 @@ class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
             cursor.execute(stmt)
 
         # check page two
-        pf.request_page()
-        page2 = pf.retrieved_page_data(2)
+        pf.request_one()
+        page2 = pf.page_data(2)
         self.assertEqualIgnoreOrder(page2, data[500:1000])
 
         page3expected = []
@@ -875,8 +783,8 @@ class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
 
         time.sleep(15)
 
-        pf.request_page()
-        page3 = pf.retrieved_page_data(3)
+        pf.request_one()
+        page3 = pf.page_data(3)
         self.assertEqualIgnoreOrder(page3, page3expected)
 
     def test_node_unavailabe_during_paging(self):
@@ -908,7 +816,7 @@ class TestPagingDatasetChanges(BasePagingTester, PageAssertionMixin):
         # stop a node and make sure we get an error trying to page the rest
         node1.stop()
         with self.assertRaisesRegexp(RuntimeError, 'Requested pages were not delivered before timeout'):
-            pf.request_all_pages()
+            pf.request_all()
 
         # TODO: can we resume the node and expect to get more results from the result set or is it done?
 
@@ -965,34 +873,34 @@ class TestPagingQueryIsolation(BasePagingTester, PageAssertionMixin):
             # first page is auto-retrieved, so no need to request it
 
         for pf in page_fetchers:
-            pf.request_page()
+            pf.request_one()
 
         for pf in page_fetchers:
-            pf.request_page()
+            pf.request_one()
 
         for pf in page_fetchers:
-            pf.request_all_pages()
+            pf.request_all()
 
-        self.assertEqual(page_fetchers[0].retrieved_pagecount(), 10)
-        self.assertEqual(page_fetchers[1].retrieved_pagecount(), 9)
-        self.assertEqual(page_fetchers[2].retrieved_pagecount(), 8)
-        self.assertEqual(page_fetchers[3].retrieved_pagecount(), 7)
-        self.assertEqual(page_fetchers[4].retrieved_pagecount(), 6)
-        self.assertEqual(page_fetchers[5].retrieved_pagecount(), 5)
-        self.assertEqual(page_fetchers[6].retrieved_pagecount(), 5)
-        self.assertEqual(page_fetchers[7].retrieved_pagecount(), 5)
-        self.assertEqual(page_fetchers[8].retrieved_pagecount(), 4)
-        self.assertEqual(page_fetchers[9].retrieved_pagecount(), 4)
-        self.assertEqual(page_fetchers[10].retrieved_pagecount(), 34)
+        self.assertEqual(page_fetchers[0].pagecount(), 10)
+        self.assertEqual(page_fetchers[1].pagecount(), 9)
+        self.assertEqual(page_fetchers[2].pagecount(), 8)
+        self.assertEqual(page_fetchers[3].pagecount(), 7)
+        self.assertEqual(page_fetchers[4].pagecount(), 6)
+        self.assertEqual(page_fetchers[5].pagecount(), 5)
+        self.assertEqual(page_fetchers[6].pagecount(), 5)
+        self.assertEqual(page_fetchers[7].pagecount(), 5)
+        self.assertEqual(page_fetchers[8].pagecount(), 4)
+        self.assertEqual(page_fetchers[9].pagecount(), 4)
+        self.assertEqual(page_fetchers[10].pagecount(), 34)
 
-        self.assertEqualIgnoreOrder(page_fetchers[0].all_retrieved_data(), expected_data[:5000])
-        self.assertEqualIgnoreOrder(page_fetchers[1].all_retrieved_data(), expected_data[5000:10000])
-        self.assertEqualIgnoreOrder(page_fetchers[2].all_retrieved_data(), expected_data[10000:15000])
-        self.assertEqualIgnoreOrder(page_fetchers[3].all_retrieved_data(), expected_data[15000:20000])
-        self.assertEqualIgnoreOrder(page_fetchers[4].all_retrieved_data(), expected_data[20000:25000])
-        self.assertEqualIgnoreOrder(page_fetchers[5].all_retrieved_data(), expected_data[:5000])
-        self.assertEqualIgnoreOrder(page_fetchers[6].all_retrieved_data(), expected_data[5000:10000])
-        self.assertEqualIgnoreOrder(page_fetchers[7].all_retrieved_data(), expected_data[10000:15000])
-        self.assertEqualIgnoreOrder(page_fetchers[8].all_retrieved_data(), expected_data[15000:20000])
-        self.assertEqualIgnoreOrder(page_fetchers[9].all_retrieved_data(), expected_data[20000:25000])
-        self.assertEqualIgnoreOrder(page_fetchers[10].all_retrieved_data(), expected_data[:50000])
+        self.assertEqualIgnoreOrder(page_fetchers[0].all_data(), expected_data[:5000])
+        self.assertEqualIgnoreOrder(page_fetchers[1].all_data(), expected_data[5000:10000])
+        self.assertEqualIgnoreOrder(page_fetchers[2].all_data(), expected_data[10000:15000])
+        self.assertEqualIgnoreOrder(page_fetchers[3].all_data(), expected_data[15000:20000])
+        self.assertEqualIgnoreOrder(page_fetchers[4].all_data(), expected_data[20000:25000])
+        self.assertEqualIgnoreOrder(page_fetchers[5].all_data(), expected_data[:5000])
+        self.assertEqualIgnoreOrder(page_fetchers[6].all_data(), expected_data[5000:10000])
+        self.assertEqualIgnoreOrder(page_fetchers[7].all_data(), expected_data[10000:15000])
+        self.assertEqualIgnoreOrder(page_fetchers[8].all_data(), expected_data[15000:20000])
+        self.assertEqualIgnoreOrder(page_fetchers[9].all_data(), expected_data[20000:25000])
+        self.assertEqualIgnoreOrder(page_fetchers[10].all_data(), expected_data[:50000])
