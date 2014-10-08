@@ -8,3 +8,11 @@ for test in os.listdir(current_dir):
     gone, alive = psutil.wait_procs([process], 800)
     for p in alive:
         p.kill()
+        jps = subprocess.Popen(['jps'], stdout=subprocess.PIPE)
+        out, err = jps.communicate()
+        lines = out.split('\n')
+        for line in lines:
+            if line.find('Cassandra') > 0:
+                pid = line.split(' ')[0]
+                cass = psutil.Process(int(pid))
+                cass.kill()
