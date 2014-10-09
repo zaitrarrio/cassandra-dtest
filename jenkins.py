@@ -1,7 +1,10 @@
 import subprocess, os, sys, psutil, time
 
 current_dir = sys.argv[1]
+skip = ['.git', '.gitignore', 'README.md', 'INSTALL.md', 'license.txt', 'dtest.py', 'loadmaker.py']
 for test in os.listdir(current_dir):
+    if test in skip:
+        continue
     args = ['nosetests', '--nocapture', '--verbosity=3', '--with-xunit', '--xunit-file=%s.xml' % test, test]
     p = subprocess.Popen(args)
     process = psutil.Process(p.pid)
