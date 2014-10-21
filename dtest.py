@@ -52,6 +52,8 @@ logging.basicConfig(filename=os.path.join(LOG_SAVED_DIR,"dtest.log"),
                     level=logging.DEBUG)
 
 LOG = logging.getLogger('dtest')
+# set python-driver log level to WARN by default for dtest
+logging.getLogger('cassandra').setLevel(logging.WARNING)
 
 # copy the initial environment variables so we can reset them later:
 initial_environment = copy.deepcopy(os.environ)
@@ -187,14 +189,14 @@ class Tester(TestCase):
             with open(LAST_TEST_DIR) as f:
                 self.test_path = f.readline().strip('\n')
                 name = f.readline()
-                try:
-                    self.cluster = Cluster.load(self.test_path, name)
-                    # Avoid waiting too long for node to be marked down
-                    if not self._preserve_cluster:
-                        self._cleanup_cluster()
-                except IOError:
-                    # after a restart, /tmp will be emptied so we'll get an IOError when loading the old cluster here
-                    pass
+            try:
+                self.cluster = Cluster.load(self.test_path, name)
+                # Avoid waiting too long for node to be marked down
+                if not self._preserve_cluster:
+                    self._cleanup_cluster()
+            except IOError:
+                # after a restart, /tmp will be emptied so we'll get an IOError when loading the old cluster here
+                pass
 
         self.cluster = self._get_cluster()
         if RECORD_COVERAGE:
