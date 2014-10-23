@@ -127,7 +127,7 @@ class Tester(TestCase):
     def _get_cluster(self, name='test'):
         if self._preserve_cluster and hasattr(self, 'cluster'):
             return self.cluster
-        self.test_path = tempfile.mkdtemp(prefix='dtest-')
+        self.test_path = tempfile.mkdtemp(prefix='dtest-', dir="D:\\temp")
         # ccm on cygwin needs absolute path to directory - it crosses from cygwin space into
         # regular Windows space on wmic calls which will otherwise break pathing
         if sys.platform == "cygwin":
