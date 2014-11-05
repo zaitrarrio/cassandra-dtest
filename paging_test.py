@@ -502,8 +502,7 @@ class TestPagingData(BasePagingTester, PageAssertionMixin):
         print CL.value_to_name.get(stmt.consistency_level)
 
         future = cursor.execute_async(
-            stmt,
-            trace=True
+            stmt
         )
 
         print CL.value_to_name.get(stmt.consistency_level)
@@ -512,14 +511,7 @@ class TestPagingData(BasePagingTester, PageAssertionMixin):
 
         print CL.value_to_name.get(stmt.consistency_level)
 
-        trace = future.get_query_trace()
-
-        print trace
-
         print CL.value_to_name.get(future.query.consistency_level)
-
-        for event in trace.events:
-            print event
 
         self.assertEqual(pf.pagecount(), 4)
         self.assertEqual(pf.num_results_all(), [3000, 3000, 3000, 1000])
