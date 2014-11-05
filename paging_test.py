@@ -215,11 +215,12 @@ class TestPagingSize(BasePagingTester, PageAssertionMixin):
             """
         expected_data = create_rows(data, cursor, 'paging_test', cl=CL.ALL, format_funcs={'id': int, 'value': unicode})
 
+        stmt = SimpleStatement("select * from paging_test", fetch_size=100, consistency_level=CL.ALL)
+
         future = cursor.execute_async(
-            SimpleStatement("select * from paging_test", fetch_size=100, consistency_level=CL.ALL)
+            stmt
         )
         pf = PageFetcher(future)
-        pf.request_all()
 
         self.assertFalse(pf.has_more_pages)
         self.assertEqual(len(expected_data), len(pf.all_data()))
@@ -496,11 +497,29 @@ class TestPagingData(BasePagingTester, PageAssertionMixin):
             """
         expected_data = create_rows(data, cursor, 'paging_test', cl=CL.ALL, format_funcs={'id': int, 'value': random_txt})
 
+        stmt = SimpleStatement("select * from paging_test where id = 1", fetch_size=3000, consistency_level=CL.ALL)
+
+        print CL.value_to_name.get(stmt.consistency_level)
+
         future = cursor.execute_async(
-            SimpleStatement("select * from paging_test where id = 1", fetch_size=3000, consistency_level=CL.ALL)
+            stmt,
+            trace=True
         )
 
+        print CL.value_to_name.get(stmt.consistency_level)
+
         pf = PageFetcher(future).request_all()
+
+        print CL.value_to_name.get(stmt.consistency_level)
+
+        trace = future.get_query_trace()
+
+        print trace
+
+        print CL.value_to_name.get(future.query.consistency_level)
+
+        for event in trace.events:
+            print event
 
         self.assertEqual(pf.pagecount(), 4)
         self.assertEqual(pf.num_results_all(), [3000, 3000, 3000, 1000])

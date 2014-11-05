@@ -115,9 +115,15 @@ def create_rows(data, cursor, table_name, cl=None, format_funcs=None, prefix='',
 
     query_results = execute_concurrent_with_args(cursor, prepared, [d.values() for d in dicts])
 
+    fail_count = 0
     for i, (status, result_or_exc) in enumerate(query_results):
         # should maybe check status here before appening to expected values
+        if status is False:
+            fail_count += 1
+
         values.append(dicts[i])
+
+    print "fail count: {} <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<".format(fail_count)
 
     return values
 
