@@ -2588,7 +2588,8 @@ class TestCQL(Tester):
                 id2 int,
                 author text,
                 time bigint,
-                content text,
+                v1 text,
+                v2 text,
                 PRIMARY KEY ((id1, id2), author, time)
             )
         """)
@@ -2596,20 +2597,46 @@ class TestCQL(Tester):
         cursor.execute("CREATE INDEX ON posts(time)")
         cursor.execute("CREATE INDEX ON posts(id2)")
 
-        cursor.execute("INSERT INTO posts(id1, id2, author, time, content) VALUES(0, 0, 'bob', 0, 'A')")
-        cursor.execute("INSERT INTO posts(id1, id2, author, time, content) VALUES(0, 0, 'bob', 1, 'B')")
-        cursor.execute("INSERT INTO posts(id1, id2, author, time, content) VALUES(0, 1, 'bob', 2, 'C')")
-        cursor.execute("INSERT INTO posts(id1, id2, author, time, content) VALUES(0, 0, 'tom', 0, 'D')")
-        cursor.execute("INSERT INTO posts(id1, id2, author, time, content) VALUES(0, 1, 'tom', 1, 'E')")
+        cursor.execute("INSERT INTO posts(id1, id2, author, time, v1, v2) VALUES(0, 0, 'bob', 0, 'A', 'A')")
+        cursor.execute("INSERT INTO posts(id1, id2, author, time, v1, v2) VALUES(0, 0, 'bob', 1, 'B', 'B')")
+        cursor.execute("INSERT INTO posts(id1, id2, author, time, v1, v2) VALUES(0, 1, 'bob', 2, 'C', 'C')")
+        cursor.execute("INSERT INTO posts(id1, id2, author, time, v1, v2) VALUES(0, 0, 'tom', 0, 'D', 'D')")
+        cursor.execute("INSERT INTO posts(id1, id2, author, time, v1, v2) VALUES(0, 1, 'tom', 1, 'E', 'E')")
 
-        res = cursor.execute("SELECT content FROM posts WHERE time = 1")
+        res = cursor.execute("SELECT v1 FROM posts WHERE time = 1")
         assert rows_to_list(res) == [ ['B'], ['E'] ], res
 
-        res = cursor.execute("SELECT content FROM posts WHERE id2 = 1")
+        res = cursor.execute("SELECT v1 FROM posts WHERE id2 = 1")
         assert rows_to_list(res) == [ ['C'], ['E'] ], res
 
-        res = cursor.execute("SELECT content FROM posts WHERE id1 = 0 AND id2 = 0 AND author = 'bob' AND time = 0")
+        res = cursor.execute("SELECT v1 FROM posts WHERE id1 = 0 AND id2 = 0 AND author = 'bob' AND time = 0")
         assert rows_to_list(res) == [ ['A'] ], res
+
+        # Test for CASSANDRA-8206
+        cursor.execute("UPDATE posts SET v2 = null WHERE id1 = 0 AND id2 = 0 AND author = 'bob' AND time = 1")
+
+        res = cursor.execute("SELECT v1 FROM posts WHERE id2 = 0")
+        assert rows_to_list(res) == [ ['A'], ['B'], ['D'] ], res
+
+        res = cursor.execute("SELECT v1 FROM posts WHERE time = 1")
+        assert rows_to_list(res) == [ ['B'], ['E'] ], res
+
+    @since('2.0')
+    def invalid_clustering_indexing_test(self):
+        cursor = self.prepare()
+
+        cursor.execute("CREATE TABLE test1 (a int, b int, c int, d int, PRIMARY KEY ((a, b))) WITH COMPACT STORAGE")
+        assert_invalid(cursor, "CREATE INDEX ON test1(a)")
+        assert_invalid(cursor, "CREATE INDEX ON test1(b)")
+
+        cursor.execute("CREATE TABLE test2 (a int, b int, c int, PRIMARY KEY (a, b)) WITH COMPACT STORAGE")
+        assert_invalid(cursor, "CREATE INDEX ON test2(a)")
+        assert_invalid(cursor, "CREATE INDEX ON test2(b)")
+        assert_invalid(cursor, "CREATE INDEX ON test2(c)")
+
+        cursor.execute("CREATE TABLE test3 (a int, b int, c int static , PRIMARY KEY (a, b))")
+        assert_invalid(cursor, "CREATE INDEX ON test3(c)")
+
 
     @since('2.0')
     def edge_2i_on_complex_pk_test(self):
@@ -3715,7 +3742,7 @@ class TestCQL(Tester):
         cursor.execute("insert into test(field1, field2, field3) values ('hola', now(), false);");
         cursor.execute("insert into test(field1, field2, field3) values ('hola', now(), false);");
 
-        assert_one(cursor, "select count(*) from test where field3 = false limit 1;", [1])
+        assert_one(cursor, "select count(*) from test where field3 = false limit 1;", [2])
 
 
     @since('2.0')
@@ -4269,7 +4296,6 @@ class TestCQL(Tester):
         # This doesn't work -- see #7059
         #assert_all(cursor, "SELECT * FROM test WHERE v > 1 AND v <= 3 LIMIT 6 ALLOW FILTERING", [[1, 2], [1, 3], [0, 2], [0, 3], [2, 2], [2, 3]])
 
-    @require("6950")
     def key_index_with_reverse_clustering(self):
         """ Test for #6950 bug """
         cursor = self.prepare()
@@ -4548,7 +4574,6 @@ class TestCQL(Tester):
         # A blob that is not 4 bytes should be rejected
         assert_invalid(cursor, "INSERT INTO test(k, v) VALUES (0, blobAsInt(0x01))")
 
-    @require("7730")
     def alter_clustering_and_static_test(self):
         cursor = self.prepare()
 
@@ -4567,7 +4592,6 @@ class TestCQL(Tester):
         cursor.execute("alter table test drop v")
         assert_invalid(cursor, "alter table test add v set<int>")
 
-    @require("#7744")
     def downgrade_to_compact_bug_test(self):
         """ Test for 7744 """
         cursor = self.prepare()
