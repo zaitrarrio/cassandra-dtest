@@ -1,10 +1,7 @@
 from __future__ import with_statement
-import os, tempfile, sys, shutil, subprocess, types, time, threading, logging
-import fnmatch
-import re
-import copy
 from six.moves import configparser as ConfigParser
 from six import print_
+import os, tempfile, sys, shutil, subprocess, types, time, threading, logging, fnmatch, re, copy
 
 from ccmlib.cluster import Cluster
 from ccmlib.cluster_factory import ClusterFactory
