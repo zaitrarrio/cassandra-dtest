@@ -4,7 +4,7 @@ import uuid
 from cassandra import ConsistencyLevel as CL
 from cassandra import InvalidRequest
 from cassandra.query import SimpleStatement, dict_factory
-from dtest import Tester
+from dtest import Tester, run_scenarios
 from pytools import since
 
 from datahelp import create_rows, parse_data_into_dicts, flatten_into_set
@@ -168,6 +168,7 @@ class PageAssertionMixin(object):
     def assertIsSubsetOf(self, subset, superset):
         assert flatten_into_set(subset).issubset(flatten_into_set(superset))
 
+
 class BasePagingTester(Tester):
     def prepare(self):
         cluster = self.cluster
@@ -317,36 +318,6 @@ class TestPagingSize(BasePagingTester, PageAssertionMixin):
         # make sure expected and actual have same data elements (ignoring order)
         self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
 
-    @since('2.0')
-    def test_zero_page_size_default(self):
-        """
-        If the page size isn't sent then the default fetch size is used.
-        """
-        cursor = self.prepare()
-        self.create_ks(cursor, 'test_paging_size', 2)
-        cursor.execute("CREATE TABLE paging_test ( id uuid PRIMARY KEY, value text )")
-
-        def random_txt(text):
-            return uuid.uuid4()
-
-        data = """
-               | id     |value   |
-          *5001| [uuid] |testing |
-            """
-        expected_data = create_rows(data, cursor, 'paging_test', cl=CL.ALL, format_funcs={'id': random_txt, 'value': unicode})
-
-        future = cursor.execute_async(
-            SimpleStatement("select * from paging_test", fetch_size=0, consistency_level=CL.ALL)
-        )
-
-        pf = PageFetcher(future).request_all()
-
-        # may fail for now, see PYTHON-161
-        self.assertEqual(pf.num_results_all(), [5000, 1])
-
-        # make sure expected and actual have same data elements (ignoring order)
-        self.assertEqualIgnoreOrder(pf.all_data(), expected_data)
-
 
 class TestPagingWithModifiers(BasePagingTester, PageAssertionMixin):
     """
@@ -406,44 +377,55 @@ class TestPagingWithModifiers(BasePagingTester, PageAssertionMixin):
     def test_with_limit(self):
         cursor = self.prepare()
         self.create_ks(cursor, 'test_paging_size', 2)
-        cursor.execute("CREATE TABLE paging_test ( id int PRIMARY KEY, value text )")
+        cursor.execute("CREATE TABLE paging_test ( id int, value text, PRIMARY KEY (id, value) )")
+
+        def random_txt(text):
+            return unicode(uuid.uuid4())
 
         data = """
-            |id|value           |
-            |1 |testing         |
-            |2 |and more testing|
-            |3 |and more testing|
-            |4 |and more testing|
-            |5 |and more testing|
-            |6 |testing         |
-            |7 |and more testing|
-            |8 |and more testing|
-            |9 |and more testing|
+               | id | value         |
+             *5| 1  | [random text] |
+             *5| 2  | [random text] |
+            *10| 3  | [random text] |
+            *10| 4  | [random text] |
+            *20| 5  | [random text] |
+            *30| 6  | [random text] |
             """
-        expected_data = create_rows(data, cursor, 'paging_test', cl=CL.ALL, format_funcs={'id': int, 'value': unicode})
+        expected_data = create_rows(data, cursor, 'paging_test', cl=CL.ALL, format_funcs={'id': int, 'value': random_txt})
 
-        future = cursor.execute_async(
-            SimpleStatement("select * from paging_test limit 5", fetch_size=9, consistency_level=CL.ALL)
-        )
+        scenarios = [
+            # using equals clause w/single partition
+            {'limit': 10, 'fetch': 20, 'data_size': 30, 'whereclause': 'WHERE id = 6', 'expect_pgcount': 1, 'expect_pgsizes': [10]},      # limit < fetch < data
+            {'limit': 10, 'fetch': 30, 'data_size': 20, 'whereclause': 'WHERE id = 5', 'expect_pgcount': 1, 'expect_pgsizes': [10]},      # limit < data < fetch
+            {'limit': 20, 'fetch': 10, 'data_size': 30, 'whereclause': 'WHERE id = 6', 'expect_pgcount': 2, 'expect_pgsizes': [10, 10]},  # fetch < limit < data
+            {'limit': 30, 'fetch': 10, 'data_size': 20, 'whereclause': 'WHERE id = 5', 'expect_pgcount': 2, 'expect_pgsizes': [10, 10]},  # fetch < data < limit
+            {'limit': 20, 'fetch': 30, 'data_size': 10, 'whereclause': 'WHERE id = 3', 'expect_pgcount': 1, 'expect_pgsizes': [10]},      # data < limit < fetch
+            {'limit': 30, 'fetch': 20, 'data_size': 10, 'whereclause': 'WHERE id = 3', 'expect_pgcount': 1, 'expect_pgsizes': [10]},      # data < fetch < limit
 
-        pf = PageFetcher(future).request_all()
+            # using 'in' clause w/multi partitions
+            {'limit': 9, 'fetch': 20, 'data_size': 80, 'whereclause': 'WHERE id in (1,2,3,4,5,6)', 'expect_pgcount': 1, 'expect_pgsizes': [9]},  # limit < fetch < data
+            {'limit': 10, 'fetch': 30, 'data_size': 20, 'whereclause': 'WHERE id in (3,4)', 'expect_pgcount': 1, 'expect_pgsizes': [10]},      # limit < data < fetch
+            {'limit': 20, 'fetch': 10, 'data_size': 30, 'whereclause': 'WHERE id in (4,5)', 'expect_pgcount': 2, 'expect_pgsizes': [10, 10]},  # fetch < limit < data
+            {'limit': 30, 'fetch': 10, 'data_size': 20, 'whereclause': 'WHERE id in (3,4)', 'expect_pgcount': 2, 'expect_pgsizes': [10, 10]},  # fetch < data < limit
+            {'limit': 20, 'fetch': 30, 'data_size': 10, 'whereclause': 'WHERE id in (1,2)', 'expect_pgcount': 1, 'expect_pgsizes': [10]},      # data < limit < fetch
+            {'limit': 30, 'fetch': 20, 'data_size': 10, 'whereclause': 'WHERE id in (1,2)', 'expect_pgcount': 1, 'expect_pgsizes': [10]},      # data < fetch < limit
+        ]
 
-        self.assertEqual(pf.pagecount(), 1)
-        self.assertEqual(pf.num_results_all(), [5])
+        def handle_scenario(scenario):
+            future = cursor.execute_async(
+                SimpleStatement(
+                    "select * from paging_test {} limit {}".format(scenario['whereclause'], scenario['limit']),
+                    fetch_size=scenario['fetch'], consistency_level=CL.ALL)
+            )
 
-        # make sure all the data retrieved is a subset of input data
-        self.assertIsSubsetOf(pf.all_data(), expected_data)
+            pf = PageFetcher(future).request_all()
+            self.assertEqual(pf.num_results_all(), scenario['expect_pgsizes'])
+            self.assertEqual(pf.pagecount(), scenario['expect_pgcount'])
 
-        # let's do another query with a limit larger than one page
-        future = cursor.execute_async(
-            SimpleStatement("select * from paging_test limit 8", fetch_size=5, consistency_level=CL.ALL)
-        )
+            # make sure all the data retrieved is a subset of input data
+            self.assertIsSubsetOf(pf.all_data(), expected_data)
 
-        pf = PageFetcher(future).request_all()
-
-        self.assertEqual(pf.pagecount(), 2)
-        self.assertEqual(pf.num_results_all(), [5, 3])
-        self.assertIsSubsetOf(pf.all_data(), expected_data)
+        run_scenarios(scenarios, handle_scenario, deferred_exceptions=(AssertionError,))
 
     @since('2.0')
     def test_with_allow_filtering(self):
