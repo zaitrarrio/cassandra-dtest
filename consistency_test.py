@@ -16,10 +16,12 @@ class TestConsistency(Tester):
         node1, node2, node3 = cluster.nodelist()
 
         session = self.patient_cql_connection(node1)
+        session.default_timeout = None
         self.create_ks(session, 'ks', 3)
         create_c1c2_table(self, session)
 
         session2 = self.patient_cql_connection(node2, 'ks')
+        session2.default_timeout = None
 
         # insert and get at CL.QUORUM
         for n in xrange(0, 100):
