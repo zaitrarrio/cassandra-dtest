@@ -331,7 +331,10 @@ class TestCQL(Tester):
         # Check that we do limit the output to 1 *and* that we respect query
         # order of keys (even though 48 is after 2)
         res = cursor.execute("SELECT * FROM clicks WHERE userid IN (48, 2) LIMIT 1")
-        assert rows_to_list(res) == [[ 48, 'http://foo.com', 42 ]], res
+        if self.cluster.version() >= '3.0':
+            assert rows_to_list(res) == [[ 2, 'http://foo.com', 42 ]], res
+        else:
+            assert rows_to_list(res) == [[ 48, 'http://foo.com', 42 ]], res
 
     def tuple_query_mixed_order_columns_prepare(self, cursor, *col_order):
         cursor.execute("""
@@ -640,7 +643,10 @@ class TestCQL(Tester):
             cursor.execute("INSERT INTO test2 (k, c1, c2, v) VALUES (0, 0, %i, %i)" % (x, x))
 
         # Check first we don't allow IN everywhere
-        assert_invalid(cursor, "SELECT v FROM test2 WHERE k = 0 AND c1 IN (5, 2, 8) AND c2 = 3")
+        if self.cluster.version() >= '3.0':
+            assert_none(cursor, "SELECT v FROM test2 WHERE k = 0 AND c1 IN (5, 2, 8) AND c2 = 3")
+        else:
+            assert_invalid(cursor, "SELECT v FROM test2 WHERE k = 0 AND c1 IN (5, 2, 8) AND c2 = 3")
 
         res = cursor.execute("SELECT v FROM test2 WHERE k = 0 AND c1 = 0 AND c2 IN (5, 2, 8)")
         assert rows_to_list(res) == [[2], [5], [8]], res
@@ -1812,19 +1818,19 @@ class TestCQL(Tester):
         res = cursor.execute("SELECT blog_id, content FROM blogs WHERE author='foo'")
         assert rows_to_list(res) == [[1, 'bar1'], [1, 'bar2'], [2, 'baz']], res
 
-        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 > 0 AND author='foo'")
+        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 > 0 AND author='foo' ALLOW FILTERING")
         assert rows_to_list(res) == [[2, 'baz']], res
 
-        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 = 1 AND author='foo'")
+        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 = 1 AND author='foo' ALLOW FILTERING")
         assert rows_to_list(res) == [[2, 'baz']], res
 
-        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 = 1 AND time2 = 0 AND author='foo'")
+        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 = 1 AND time2 = 0 AND author='foo' ALLOW FILTERING")
         assert rows_to_list(res) == [[2, 'baz']], res
 
-        res = cursor.execute("SELECT content FROM blogs WHERE time1 = 1 AND time2 = 1 AND author='foo'")
+        res = cursor.execute("SELECT content FROM blogs WHERE time1 = 1 AND time2 = 1 AND author='foo' ALLOW FILTERING")
         assert rows_to_list(res) == [], res
 
-        res = cursor.execute("SELECT content FROM blogs WHERE time1 = 1 AND time2 > 0 AND author='foo'")
+        res = cursor.execute("SELECT content FROM blogs WHERE time1 = 1 AND time2 > 0 AND author='foo' ALLOW FILTERING")
         assert rows_to_list(res) == [], res
 
         assert_invalid(cursor, "SELECT content FROM blogs WHERE time2 >= 0 AND author='foo'")
@@ -3965,7 +3971,10 @@ class TestCQL(Tester):
         assert_all(cursor, "SELECT v FROM test WHERE k=0 AND c1 = 0 AND c2 IN (2, 0)", [[0], [2]])
         assert_all(cursor, "SELECT v FROM test WHERE k=0 AND c1 = 0 AND c2 IN (2, 0) ORDER BY c1 ASC", [[0], [2]])
         assert_all(cursor, "SELECT v FROM test WHERE k=0 AND c1 = 0 AND c2 IN (2, 0) ORDER BY c1 DESC", [[2], [0]])
-        assert_all(cursor, "SELECT v FROM test WHERE k IN (1, 0)", [[3], [4], [5], [0], [1], [2]])
+        if self.cluster.version() >= '3.0':
+            assert_all(cursor, "SELECT v FROM test WHERE k IN (1, 0)", [[0], [1], [2], [3], [4], [5]])
+        else:
+            assert_all(cursor, "SELECT v FROM test WHERE k IN (1, 0)", [[3], [4], [5], [0], [1], [2]])
         assert_all(cursor, "SELECT v FROM test WHERE k IN (1, 0) ORDER BY c1 ASC", [[0], [1], [2], [3], [4], [5]])
 
         # we should also be able to use functions in the select clause (additional test for CASSANDRA-8286)
@@ -4297,7 +4306,7 @@ class TestCQL(Tester):
     def map_item_conditional_test(self):
         cursor = self.prepare()
 
-        frozen_values = (False, True) if self.cluster.version() > "2.1.3" else (False,)
+        frozen_values = (False, True) if self.cluster.version() >= "2.1.3" else (False,)
         for frozen in frozen_values:
 
             cursor.execute("DROP TABLE IF EXISTS tmap")
@@ -4319,14 +4328,17 @@ class TestCQL(Tester):
 
             if self.cluster.version() > "2.1.1":
                 cursor.execute("INSERT INTO tmap(k, m) VALUES (1, null)")
-                assert_one(cursor, "UPDATE tmap set m['foo'] = 'bar', m['bar'] = 'foo' WHERE k = 1 IF m['foo'] IN ('blah', null)", [True])
+                if frozen:
+                    assert_invalid(cursor, "UPDATE tmap set m['foo'] = 'bar', m['bar'] = 'foo' WHERE k = 1 IF m['foo'] IN ('blah', null)")
+                else:
+                    assert_one(cursor, "UPDATE tmap set m['foo'] = 'bar', m['bar'] = 'foo' WHERE k = 1 IF m['foo'] IN ('blah', null)", [True])
 
     @since('2.1.1')
     def expanded_map_item_conditional_test(self):
         # expanded functionality from CASSANDRA-6839
         cursor = self.prepare()
 
-        frozen_values = (False, True) if self.cluster.version() > "2.1.3" else (False,)
+        frozen_values = (False, True) if self.cluster.version() >= "2.1.3" else (False,)
         for frozen in frozen_values:
 
             cursor.execute("DROP TABLE IF EXISTS tmap")
