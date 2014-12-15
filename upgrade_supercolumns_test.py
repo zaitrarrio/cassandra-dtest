@@ -17,7 +17,7 @@ class TestSCUpgrade(Tester):
         ]
         Tester.__init__(self, *args, **kwargs)
 
-    def slice_query_test(self):
+    def slice_query_counter_test(self):
         cluster = self.cluster
 
         cluster.set_install_dir(version="1.2.19")
@@ -35,6 +35,8 @@ class TestSCUpgrade(Tester):
         for i in xrange(40):
             for k in xrange(random.randint(0,15)):
                 cli.do("incr sc_test['Counter1'][-12]['%d'] by 1" % i)
+        cli.do("incr sc_test['Counter1'][-11]['2'] by 3")
+        cli.do("incr sc_test['Counter2'][-12]['3'] by 5")
 
         assert not cli.has_errors(), cli.errors()
         cli.close()
@@ -45,6 +47,37 @@ class TestSCUpgrade(Tester):
         session.execute("Use test")
         rows = session.execute("Select * from sc_test where key='Counter1' limit 10")
         slice_rows = session.execute("Select * from sc_test where key='Counter1' and column1 = -12 limit 10")
+        assert rows == slice_rows
+
+    def slice_query_regular_test(self):
+        cluster = self.cluster
+
+        cluster.set_install_dir(version="1.2.19")
+        cluster.populate(3).start()
+
+        node1, node2, node3 = cluster.nodelist()
+
+        cli = node1.cli()
+        cli.do("create keyspace test with placement_strategy = 'SimpleStrategy' and strategy_options = {replication_factor : 2} and durable_writes = true")
+        cli.do("use test")
+        cli.do("create column family sc_test with column_type = 'Super' and default_validation_class = 'IntegerType' AND key_validation_class=UTF8Type AND comparator=IntegerType AND subcomparator=UTF8Type")
+
+        assert not cli.has_errors(), cli.errors()
+
+        for i in xrange(40):
+            cli.do("set sc_test['Regular1'][-12]['%d'] = %d" % (i, random.randint(0,15)))
+        cli.do("set sc_test['Regular1'][-11]['2'] = 54")
+        cli.do("set sc_test['Regular2'][-12]['1'] = 15")
+
+        assert not cli.has_errors(), cli.errors()
+        cli.close()
+
+        self.upgrade_to_version("git:cassandra-2.0")
+
+        session = self.cql_connection(node1)
+        session.execute("Use test")
+        rows = session.execute("Select * from sc_test where key='Regular1' limit 10")
+        slice_rows = session.execute("Select * from sc_test where key='Regular1' and column1 = -12 limit 10")
         assert rows == slice_rows
 
     def upgrade_to_version(self, tag, nodes=None):
