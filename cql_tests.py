@@ -1177,6 +1177,25 @@ class TestCQL(Tester):
             else:
                 assert isinstance(r[3], (int, long)), res
 
+        # wrap writetime(), ttl() in other functions (test for CASSANDRA-8451)
+        res = cursor.execute("SELECT k, c, blobAsBigint(bigintAsBlob(writetime(c))), ttl(c) FROM test")
+        assert len(res) == 2, res
+        for r in res:
+            assert isinstance(r[2], (int, long))
+            if r[0] == 1:
+                assert r[3] == None, res
+            else:
+                assert isinstance(r[3], (int, long)), res
+
+        res = cursor.execute("SELECT k, c, writetime(c), blobAsInt(intAsBlob(ttl(c))) FROM test")
+        assert len(res) == 2, res
+        for r in res:
+            assert isinstance(r[2], (int, long))
+            if r[0] == 1:
+                assert r[3] == None, res
+            else:
+                assert isinstance(r[3], (int, long)), res
+
         assert_invalid(cursor, "SELECT k, c, writetime(k) FROM test")
 
         res = cursor.execute("SELECT k, d, writetime(d) FROM test WHERE k = 1")
@@ -1818,19 +1837,19 @@ class TestCQL(Tester):
         res = cursor.execute("SELECT blog_id, content FROM blogs WHERE author='foo'")
         assert rows_to_list(res) == [[1, 'bar1'], [1, 'bar2'], [2, 'baz']], res
 
-        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 > 0 AND author='foo' ALLOW FILTERING")
+        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 > 0 AND author='foo'")
         assert rows_to_list(res) == [[2, 'baz']], res
 
-        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 = 1 AND author='foo' ALLOW FILTERING")
+        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 = 1 AND author='foo'")
         assert rows_to_list(res) == [[2, 'baz']], res
 
-        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 = 1 AND time2 = 0 AND author='foo' ALLOW FILTERING")
+        res = cursor.execute("SELECT blog_id, content FROM blogs WHERE time1 = 1 AND time2 = 0 AND author='foo'")
         assert rows_to_list(res) == [[2, 'baz']], res
 
-        res = cursor.execute("SELECT content FROM blogs WHERE time1 = 1 AND time2 = 1 AND author='foo' ALLOW FILTERING")
+        res = cursor.execute("SELECT content FROM blogs WHERE time1 = 1 AND time2 = 1 AND author='foo'")
         assert rows_to_list(res) == [], res
 
-        res = cursor.execute("SELECT content FROM blogs WHERE time1 = 1 AND time2 > 0 AND author='foo' ALLOW FILTERING")
+        res = cursor.execute("SELECT content FROM blogs WHERE time1 = 1 AND time2 > 0 AND author='foo'")
         assert rows_to_list(res) == [], res
 
         assert_invalid(cursor, "SELECT content FROM blogs WHERE time2 >= 0 AND author='foo'")
@@ -2646,6 +2665,26 @@ class TestCQL(Tester):
 
         res = cursor.execute("SELECT * FROM test WHERE key=0 AND c IN (0, 2)")
         assert rows_to_list(res) == [[0, 0, 0], [0, 2, 2]], res
+
+    def large_clustering_in_test(self):
+        # Test for CASSANDRA-8410
+        cursor = self.prepare()
+
+        cursor.execute("""
+            CREATE TABLE test (
+                k int,
+                c int,
+                v int,
+                PRIMARY KEY (k, c)
+            )
+        """)
+
+        cursor.execute("INSERT INTO test (k, c, v) VALUES (0, 0, 0)")
+        p = cursor.prepare("SELECT * FROM test WHERE k=? AND c IN ?")
+        in_values = list(range(10000))
+        rows = cursor.execute(p, [0, in_values])
+        self.assertEqual(1, len(rows))
+        self.assertEqual((0, 0, 0), rows[0])
 
     @since('1.2.1')
     def timeuuid_test(self):
