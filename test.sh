@@ -11,4 +11,4 @@ do
   ((i++))
 done
 
-CASSANDRA_VERSION=2.1.2 nosetests --total-processes --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/tests.xml ${files[@]}
+CASSANDRA_VERSION=2.1.2 nosetests --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/tests.xml ${files[@]}
