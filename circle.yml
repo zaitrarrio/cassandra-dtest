@@ -5,3 +5,4 @@ machine:
 test:
   override:
     - CASSANDRA_VERSION=2.1.2 nosetests  
+        timeout: 300
