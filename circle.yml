@@ -9,3 +9,4 @@ test:
         parallel: true
         files:
           - "*.py"
+          
