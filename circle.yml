@@ -1,0 +1,7 @@
+machine:
+  python:
+    version: 2.7.3
+    
+test:
+  override:
+    - CASSANDRA_VERSION=2.1.2 nosetests  
