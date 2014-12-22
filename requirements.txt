@@ -2,4 +2,3 @@ ccm
 pyyaml
 nose
 cassandra-driver
-cassandra-dbapi2
