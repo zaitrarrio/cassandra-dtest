@@ -8,4 +8,4 @@ test:
         timeout: 300
         parallel: true
         files:
-          - *.py
+          - "*.py"
