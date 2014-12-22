@@ -1,5 +1,5 @@
  
-box: wercker/python
+box: kiri/python-java@0.0.2
 # Build definition
 build:
   # The steps that will be executed on build
@@ -24,7 +24,7 @@ build:
     # A custom script step, name value is used in the UI
     # and the code value contains the command that get executed
     - script:
-        name: runnin nosetests
+        name: running nosetests
         code: |
           echo "python version $(python --version) running"
           echo "pip version $(pip --version) running"
