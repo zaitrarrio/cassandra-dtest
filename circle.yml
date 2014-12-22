@@ -1,6 +1,10 @@
 machine:
   python:
     version: 2.7.3
+
+dependencies:
+  pre:
+    - easy_install -U setuptools
     
 test:
   override:
