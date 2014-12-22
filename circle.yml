@@ -4,8 +4,8 @@ machine:
     
 test:
   override:
-    - CASSANDRA_VERSION=2.1.2 nosetests --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/tests.xml :  
-        timeout: 600
+    - CASSANDRA_VERSION=2.1.2 nosetests -v --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/tests.xml :  
+        timeout: 3600
         parallel: true
         files:
           - "*.py"
