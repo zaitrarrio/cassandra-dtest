@@ -2,6 +2,8 @@ blist
 ccm
 pyyaml
 nose
+nose-test-select
+nose-picker
 pycassa
 cassandra-driver
 decorator
