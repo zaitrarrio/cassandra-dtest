@@ -6,5 +6,3 @@ test:
   override:
     - ./test.sh :  
         timeout: 300
-le=$CIRCLE_TEST_REPORTS/tests.xml:  
-        timeout: 300
