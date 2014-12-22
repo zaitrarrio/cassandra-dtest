@@ -2,3 +2,4 @@ ccm
 pyyaml
 nose
 cassandra-driver
+decorator
