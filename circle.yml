@@ -8,9 +8,7 @@ dependencies:
     
 test:
   override:
-    - CASSANDRA_VERSION=2.1.2 nosetests -v --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/tests.xml :  
+    - CASSANDRA_VERSION=2.1.2 nosetests -v --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/tests.xml --test-select-config=conf/cassandra-2.1_test-select.cfg --total-processes=$CIRCLE_NODE_TOTAL --which-process=$CIRCLE_NODE_INDEX :  
         timeout: 3600
         parallel: true
-        files:
-          - "*.py"
           
