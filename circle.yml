@@ -4,5 +4,7 @@ machine:
     
 test:
   override:
-    - CASSANDRA_VERSION=2.1.2 nosetests --with-xunit --xunit-file=$CIRCLE_TEST_REPORTS/tests.xml:  
+    - ./test.sh :  
+        timeout: 300
+le=$CIRCLE_TEST_REPORTS/tests.xml:  
         timeout: 300
